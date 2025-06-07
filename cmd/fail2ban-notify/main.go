@@ -7,11 +7,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/eyeskiller/fail2ban-notifier/internal/config"
-	"github.com/eyeskiller/fail2ban-notifier/internal/connectors"
-	"github.com/eyeskiller/fail2ban-notifier/internal/geoip"
-	"github.com/eyeskiller/fail2ban-notifier/internal/version"
-	"github.com/eyeskiller/fail2ban-notifier/pkg/types"
+	"github.com/eyeskiller/fail2ban-notifier/internal/config"     //nolint:depguard
+	"github.com/eyeskiller/fail2ban-notifier/internal/connectors" //nolint:depguard
+	"github.com/eyeskiller/fail2ban-notifier/internal/geoip"      //nolint:depguard
+	"github.com/eyeskiller/fail2ban-notifier/internal/version"    //nolint:depguard
+	"github.com/eyeskiller/fail2ban-notifier/pkg/types"           //nolint:depguard
 )
 
 // Action types
@@ -29,11 +29,11 @@ func handleInitConfig(configPath string, cfg *config.Config, logger *log.Logger)
 	if discoverErr != nil {
 		logger.Printf("Warning: Failed to discover connectors: %v", discoverErr)
 	} else {
- 	// Merge discovered connectors with sample config
- 	for _, conn := range discovered {
- 		connCopy := conn // Create a local copy to avoid memory aliasing
- 		sampleConfig.AddConnector(&connCopy)
- 	}
+		// Merge discovered connectors with sample config
+		for _, conn := range discovered {
+			connCopy := conn // Create a local copy to avoid memory aliasing
+			sampleConfig.AddConnector(&connCopy)
+		}
 	}
 
 	if err := config.SaveConfig(configPath, sampleConfig); err != nil {
@@ -126,10 +126,15 @@ func handleTestConnector(testConnector string, cfg *config.Config, logger *log.L
 }
 
 // handleNotification processes a notification
+//
+//nolint:funlen
 func handleNotification(ip, jail, action string, failures int, cfg *config.Config, logger *log.Logger) {
 	// Validate required parameters
 	if ip == "" || jail == "" {
-		fmt.Fprintf(os.Stderr, "Error: ip and jail parameters are required\n\n")
+		_, err := fmt.Fprintf(os.Stderr, "Error: ip and jail parameters are required\n\n")
+		if err != nil {
+			return
+		}
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -165,19 +170,54 @@ func handleNotification(ip, jail, action string, failures int, cfg *config.Confi
 
 	// Create notification data
 	notificationData := types.NotificationData{
-		IP:        ip,
-		Jail:      jail,
-		Action:    action,
-		Time:      time.Now(),
-		Country:   geoInfo.Country,
-		Region:    geoInfo.Region,
-		City:      geoInfo.City,
-		ISP:       geoInfo.ISP,
-		Hostname:  "", // Could be populated from reverse DNS lookup if needed
-		Failures:  failures,
-		Timezone:  geoInfo.Timezone,
-		Latitude:  geoInfo.Lat,
-		Longitude: geoInfo.Lon,
+		IP:     ip,
+		Jail:   jail,
+		Action: action,
+		Time:   time.Now(),
+		Country: func() string {
+			if geoInfo != nil {
+				return geoInfo.Country
+			}
+			return ""
+		}(),
+		Region: func() string {
+			if geoInfo != nil {
+				return geoInfo.Region
+			}
+			return ""
+		}(),
+		City: func() string {
+			if geoInfo != nil {
+				return geoInfo.City
+			}
+			return ""
+		}(),
+		ISP: func() string {
+			if geoInfo != nil {
+				return geoInfo.ISP
+			}
+			return ""
+		}(),
+		Hostname: "", // Could be populated from reverse DNS lookup if needed
+		Failures: failures,
+		Timezone: func() string {
+			if geoInfo != nil {
+				return geoInfo.Timezone
+			}
+			return ""
+		}(),
+		Latitude: func() float64 {
+			if geoInfo != nil {
+				return geoInfo.Lat
+			}
+			return 0.0
+		}(),
+		Longitude: func() float64 {
+			if geoInfo != nil {
+				return geoInfo.Lon
+			}
+			return 0.0
+		}(),
 	}
 
 	if cfg.Debug {

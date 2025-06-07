@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eyeskiller/fail2ban-notifier/internal/config"
+	"github.com/eyeskiller/fail2ban-notifier/internal/config" //nolint:depguard
 )
 
 // Info represents geolocation information for an IP address
@@ -240,7 +240,11 @@ func (s *IPAPIService) Lookup(ip string) (*Info, error) {
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeError := resp.Body.Close(); closeError != nil {
+			err = fmt.Errorf("error closing response body: %v", closeError)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP error: %s", resp.Status)
@@ -308,7 +312,11 @@ func (s *IPGeolocationService) Lookup(ip string) (*Info, error) {
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if clientError := resp.Body.Close(); clientError != nil {
+			err = fmt.Errorf("error closing response body: %v", clientError)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP error: %s", resp.Status)

@@ -20,11 +20,6 @@ func GetBuildInfo() string {
 		Version, Commit, Date, GoVersion)
 }
 
-// GetVersion returns just the version number.
-func GetVersion() string {
-	return Version
-}
-
 // InitBuildInfo initializes build information if not already set
 func InitBuildInfo() {
 	// If Date is still "unknown", set it to current time

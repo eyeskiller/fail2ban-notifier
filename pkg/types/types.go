@@ -5,21 +5,20 @@ import (
 	"time"
 )
 
-// NotificationData contains information about the fail2ban event
 type NotificationData struct {
 	IP        string    `json:"ip"`
 	Jail      string    `json:"jail"`
 	Action    string    `json:"action"` // "ban" or "unban"
 	Time      time.Time `json:"time"`
-	Country   string    `json:"country,omitempty"`
-	Region    string    `json:"region,omitempty"`
-	City      string    `json:"city,omitempty"`
-	ISP       string    `json:"isp,omitempty"`
+	Country   string    `json:"country"`
+	Region    string    `json:"region"`
+	City      string    `json:"city"`
+	ISP       string    `json:"isp"`
 	Hostname  string    `json:"hostname,omitempty"`
 	Failures  int       `json:"failures,omitempty"`
-	Timezone  string    `json:"timezone,omitempty"`
-	Latitude  float64   `json:"latitude,omitempty"`
-	Longitude float64   `json:"longitude,omitempty"`
+	Timezone  string    `json:"timezone,nil"`
+	Latitude  float64   `json:"latitude,nil"`
+	Longitude float64   `json:"longitude,nil"`
 }
 
 // String returns a string representation of the notification data
@@ -62,13 +61,6 @@ func (nd *NotificationData) IsUnban() bool {
 // ToJSON returns the notification data as JSON
 func (nd *NotificationData) ToJSON() ([]byte, error) {
 	return json.Marshal(nd)
-}
-
-// FromJSON creates notification data from JSON
-func FromJSON(data []byte) (*NotificationData, error) {
-	var nd NotificationData
-	err := json.Unmarshal(data, &nd)
-	return &nd, err
 }
 
 // ExecutionResult represents the result of a connector execution
@@ -171,7 +163,6 @@ func (cm *ConnectorMetrics) GetSuccessRate() float64 {
 	return float64(cm.Successes) / float64(cm.Executions) * 100
 }
 
-// Configuration types for external access
 type ConfigSummary struct {
 	Version           string   `json:"version"`
 	ConnectorPath     string   `json:"connector_path"`
@@ -191,27 +182,6 @@ type Event struct {
 	Severity  string                 `json:"severity"` // "info", "warning", "error", "critical"
 }
 
-// EventType constants
-const (
-	EventTypeNotificationSent   = "notification_sent"
-	EventTypeNotificationFailed = "notification_failed"
-	EventTypeConnectorDisabled  = "connector_disabled"
-	EventTypeConfigChanged      = "config_changed"
-	EventTypeGeoIPLookup        = "geoip_lookup"
-	EventTypeSystemStart        = "system_start"
-	EventTypeSystemStop         = "system_stop"
-	EventTypeHealthCheck        = "health_check"
-)
-
-// Severity constants
-const (
-	SeverityInfo     = "info"
-	SeverityWarning  = "warning"
-	SeverityError    = "error"
-	SeverityCritical = "critical"
-)
-
-// Template variables for connector configuration
 type TemplateVars struct {
 	IP          string    `json:"ip"`
 	Jail        string    `json:"jail"`
@@ -230,34 +200,6 @@ type TemplateVars struct {
 	ActionColor string    `json:"action_color"`
 }
 
-// NewTemplateVars creates template variables from notification data
-func NewTemplateVars(data *NotificationData) TemplateVars {
-	emoji := "🚫"
-	color := "danger"
-	if data.IsUnban() {
-		emoji = "✅"
-		color = "good"
-	}
-
-	return TemplateVars{
-		IP:          data.IP,
-		Jail:        data.Jail,
-		Action:      data.Action,
-		Time:        data.Time,
-		Country:     data.Country,
-		Region:      data.Region,
-		City:        data.City,
-		ISP:         data.ISP,
-		Hostname:    data.Hostname,
-		Failures:    data.Failures,
-		Location:    data.GetLocationString(),
-		Timestamp:   data.Time.Unix(),
-		TimeString:  data.Time.Format("2006-01-02 15:04:05 MST"),
-		ActionEmoji: emoji,
-		ActionColor: color,
-	}
-}
-
 // APIResponse represents a standard API response
 type APIResponse struct {
 	Success   bool        `json:"success"`
@@ -268,22 +210,3 @@ type APIResponse struct {
 	Version   string      `json:"version,omitempty"`
 }
 
-// NewSuccessResponse creates a successful API response
-func NewSuccessResponse(data interface{}, message string) APIResponse {
-	return APIResponse{
-		Success:   true,
-		Message:   message,
-		Data:      data,
-		Timestamp: time.Now(),
-	}
-}
-
-// NewErrorResponse creates an error API response
-func NewErrorResponse(err error, message string) APIResponse {
-	return APIResponse{
-		Success:   false,
-		Message:   message,
-		Error:     err.Error(),
-		Timestamp: time.Now(),
-	}
-}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -15,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eyeskiller/fail2ban-notifier/internal/config"
-	"github.com/eyeskiller/fail2ban-notifier/pkg/types"
+	"github.com/eyeskiller/fail2ban-notifier/internal/config" //nolint:depguard
+	"github.com/eyeskiller/fail2ban-notifier/pkg/types"       //nolint:depguard
 )
 
 // Script file extensions
@@ -87,15 +88,15 @@ func (m *Manager) ExecuteAll(data *types.NotificationData) error {
 	wg.Wait()
 	close(errChan)
 
-	// Collect any errors
-	var errors []string
+	// Collect any collectedErrors
+	var collectedErrors []string
 	for err := range errChan {
-		errors = append(errors, err.Error())
+		collectedErrors = append(collectedErrors, err.Error())
 		m.logger.Printf("Error: %v", err)
 	}
 
-	if len(errors) > 0 {
-		return fmt.Errorf("connector failures: %s", strings.Join(errors, "; "))
+	if len(collectedErrors) > 0 {
+		return fmt.Errorf("connector failures: %s", strings.Join(collectedErrors, "; "))
 	}
 
 	return nil
@@ -172,6 +173,8 @@ func getInterpreter(scriptPath string) (interpreter string, args []string) {
 }
 
 // executeScript executes a script or executable connector
+//
+//nolint:funlen
 func (m *Manager) executeScript(connector *config.ConnectorConfig, data *types.NotificationData) error {
 	// Validate and clean path
 	cleanPath := filepath.Clean(connector.Path)
@@ -273,7 +276,7 @@ func (m *Manager) executeScript(connector *config.ConnectorConfig, data *types.N
 	}
 
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return fmt.Errorf("connector timed out after %v", timeout)
 		}
 		return fmt.Errorf("execution failed: %w, stderr: %s", err, stderr.String())
@@ -326,7 +329,12 @@ func (m *Manager) executeHTTP(connector *config.ConnectorConfig, data *types.Not
 	if err != nil {
 		return fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+
+		}
+	}(resp.Body)
 
 	// Read response body for debugging
 	body, _ := io.ReadAll(resp.Body)
