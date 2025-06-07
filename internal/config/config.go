@@ -22,7 +22,7 @@ const (
 
 // File permissions
 const (
-	DirPermission  = 0755
+	DirPermission  = 0750
 	FilePermission = 0600
 )
 
@@ -105,7 +105,7 @@ func LoadConfig(configPath string) (*Config, error) {
 func SaveConfig(configPath string, config *Config) error {
 	// Ensure directory exists
 	dir := filepath.Dir(configPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, DirPermission); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -122,7 +122,7 @@ func SaveConfig(configPath string, config *Config) error {
 }
 
 // validateConnector validates a single connector configuration
-func validateConnector(config *Config, i int, connector *ConnectorConfig) error {
+func validateConnector(_ *Config, i int, connector *ConnectorConfig) error {
 	if connector.Name == "" {
 		return fmt.Errorf("connector[%d]: name cannot be empty", i)
 	}
@@ -182,7 +182,8 @@ func ValidateConfig(config *Config) error {
 
 	// Validate each connector
 	for i, connector := range config.Connectors {
-		if err := validateConnector(config, i, &connector); err != nil {
+		connectorCopy := connector // Create a local copy to avoid memory aliasing
+		if err := validateConnector(config, i, &connectorCopy); err != nil {
 			return err
 		}
 

@@ -42,6 +42,11 @@ linters-settings:
       - github.com/sirupsen/logrus
     packages-with-error-message:
       - github.com/sirupsen/logrus: "logging is allowed only by standard library"
+    # Allow internal project imports
+    allow-list:
+      main:
+        - github.com/eyeskiller/fail2ban-notifier/internal
+        - github.com/eyeskiller/fail2ban-notifier/pkg
 
 linters:
   enable:
@@ -77,12 +82,10 @@ linters:
     - unparam
     - unused        # replaces varcheck, structcheck, deadcode
     - whitespace
-    - mnd           # replaces gomnd
 
 issues:
   exclude-rules:
     - path: _test\.go
       linters:
-        - gomnd
         - funlen
         - goconst

@@ -25,7 +25,8 @@ func GetVersion() string {
 	return Version
 }
 
-func init() {
+// InitBuildInfo initializes build information if not already set
+func InitBuildInfo() {
 	// If Date is still "unknown", set it to current time
 	if Date == "unknown" {
 		Date = time.Now().Format(time.RFC3339)

@@ -1,6 +1,7 @@
 package geoip
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -224,9 +225,18 @@ func (s *IPAPIService) GetName() string {
 }
 
 func (s *IPAPIService) Lookup(ip string) (*Info, error) {
-	url := fmt.Sprintf("http://ip-api.com/json/%s?fields=status,country,regionName,city,isp,timezone,lat,lon", ip)
+	url := fmt.Sprintf("https://ip-api.com/json/%s?fields=status,country,regionName,city,isp,timezone,lat,lon", ip)
 
-	resp, err := s.client.Get(url)
+	// Create a new request with context
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
@@ -285,7 +295,16 @@ func (s *IPGeolocationService) GetName() string {
 func (s *IPGeolocationService) Lookup(ip string) (*Info, error) {
 	url := fmt.Sprintf("https://api.ipgeolocation.io/ipgeo?apiKey=%s&ip=%s", s.apiKey, ip)
 
-	resp, err := s.client.Get(url)
+	// Create a new request with context
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}

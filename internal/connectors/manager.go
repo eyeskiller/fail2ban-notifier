@@ -173,9 +173,15 @@ func getInterpreter(scriptPath string) (interpreter string, args []string) {
 
 // executeScript executes a script or executable connector
 func (m *Manager) executeScript(connector *config.ConnectorConfig, data *types.NotificationData) error {
+	// Validate and clean path
+	cleanPath := filepath.Clean(connector.Path)
+	if !filepath.IsAbs(cleanPath) {
+		return fmt.Errorf("connector path must be absolute: %s", connector.Path)
+	}
+
 	// Check if file exists and is executable
-	if _, err := os.Stat(connector.Path); os.IsNotExist(err) {
-		return fmt.Errorf("connector script not found: %s", connector.Path)
+	if _, err := os.Stat(cleanPath); os.IsNotExist(err) {
+		return fmt.Errorf("connector script not found: %s", cleanPath)
 	}
 
 	// Prepare the command
@@ -185,10 +191,10 @@ func (m *Manager) executeScript(connector *config.ConnectorConfig, data *types.N
 
 	if connector.Type == config.ConnectorTypeScript {
 		// Determine interpreter based on file extension
-		interpreter, args = getInterpreter(connector.Path)
+		interpreter, args = getInterpreter(cleanPath)
 	} else {
 		// Execute as binary
-		interpreter = connector.Path
+		interpreter = cleanPath
 		args = []string{}
 	}
 
@@ -199,9 +205,19 @@ func (m *Manager) executeScript(connector *config.ConnectorConfig, data *types.N
 
 	// Create command with context
 	if len(args) > 0 {
-		cmd = exec.CommandContext(ctx, interpreter, args...)
+		// Use full path for interpreter to avoid path traversal
+		fullPath, err := exec.LookPath(interpreter)
+		if err != nil {
+			return fmt.Errorf("interpreter not found: %s, error: %w", interpreter, err)
+		}
+		cmd = exec.CommandContext(ctx, fullPath, args...)
 	} else {
-		cmd = exec.CommandContext(ctx, interpreter)
+		// Use full path for interpreter to avoid path traversal
+		fullPath, err := exec.LookPath(interpreter)
+		if err != nil {
+			return fmt.Errorf("interpreter not found: %s, error: %w", interpreter, err)
+		}
+		cmd = exec.CommandContext(ctx, fullPath)
 	}
 
 	// Prepare environment variables
@@ -367,12 +383,18 @@ func (m *Manager) DiscoverConnectors() ([]config.ConnectorConfig, error) {
 			connectorType = "script"
 		}
 
-		// Create connector config
+		// Create connector config with clean, absolute path
+		cleanPath := filepath.Clean(path)
+		if !filepath.IsAbs(cleanPath) {
+			// Skip connectors with non-absolute paths
+			continue
+		}
+
 		connector := config.ConnectorConfig{
 			Name:        strings.TrimSuffix(name, filepath.Ext(name)),
 			Type:        connectorType,
 			Enabled:     false, // Discovered connectors are disabled by default
-			Path:        path,
+			Path:        cleanPath,
 			Settings:    make(map[string]string),
 			Timeout:     30,
 			RetryCount:  2,
@@ -425,19 +447,25 @@ func (m *Manager) TestConnector(connectorName string, testData *types.Notificati
 func (m *Manager) ValidateConnector(connector *config.ConnectorConfig) error {
 	switch connector.Type {
 	case config.ConnectorTypeScript, config.ConnectorTypeExecutable:
+		// Validate path to prevent directory traversal
+		cleanPath := filepath.Clean(connector.Path)
+		if !filepath.IsAbs(cleanPath) {
+			return fmt.Errorf("connector path must be absolute: %s", connector.Path)
+		}
+
 		// Check if file exists
-		if _, err := os.Stat(connector.Path); os.IsNotExist(err) {
-			return fmt.Errorf("connector script not found: %s", connector.Path)
+		if _, err := os.Stat(cleanPath); os.IsNotExist(err) {
+			return fmt.Errorf("connector script not found: %s", cleanPath)
 		}
 
 		// Check if file is executable
-		info, err := os.Stat(connector.Path)
+		info, err := os.Stat(cleanPath)
 		if err != nil {
 			return fmt.Errorf("failed to stat connector file: %w", err)
 		}
 
 		if info.Mode()&0111 == 0 {
-			return fmt.Errorf("connector file is not executable: %s", connector.Path)
+			return fmt.Errorf("connector file is not executable: %s", cleanPath)
 		}
 
 	case config.ConnectorTypeHTTP:

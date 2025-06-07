@@ -29,10 +29,11 @@ func handleInitConfig(configPath string, cfg *config.Config, logger *log.Logger)
 	if discoverErr != nil {
 		logger.Printf("Warning: Failed to discover connectors: %v", discoverErr)
 	} else {
-		// Merge discovered connectors with sample config
-		for _, conn := range discovered {
-			sampleConfig.AddConnector(&conn) // ✅ FIXED: pass pointer to AddConnector
-		}
+ 	// Merge discovered connectors with sample config
+ 	for _, conn := range discovered {
+ 		connCopy := conn // Create a local copy to avoid memory aliasing
+ 		sampleConfig.AddConnector(&connCopy)
+ 	}
 	}
 
 	if err := config.SaveConfig(configPath, sampleConfig); err != nil {
@@ -211,6 +212,9 @@ func handleNotification(ip, jail, action string, failures int, cfg *config.Confi
 }
 
 func main() {
+	// Initialize build information
+	version.InitBuildInfo()
+
 	var (
 		ip          = flag.String("ip", "", "IP address that was banned/unbanned")
 		jail        = flag.String("jail", "", "Fail2ban jail name")
