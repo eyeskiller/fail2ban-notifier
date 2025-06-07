@@ -15,30 +15,8 @@ fi
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$SCRIPT_DIR"
 
-# Check if we're running from curl (one-liner installation)
-if [ ! -f "build/fail2ban-notify" ] && [ ! -d ".git" ]; then
-    echo "Running one-liner installation..."
-
-    # Create temporary directory
-    TEMP_DIR=$(mktemp -d)
-    echo "Created temporary directory: $TEMP_DIR"
-    cd "$TEMP_DIR"
-
-    # Clone repository
-    echo "Cloning repository..."
-    git clone https://github.com/eyeskiller/fail2ban-notifier.git
-    cd fail2ban-notifier
-
-    # Build
-    echo "Building fail2ban-notifier..."
-    make build
-
-    # Update script directory
-    SCRIPT_DIR="$PWD"
-
-    # Set cleanup flag
-    CLEANUP_TEMP=true
-elif [ ! -f "build/fail2ban-notify" ]; then
+# Check if binary exists
+if [ ! -f "build/fail2ban-notify" ]; then
     echo "Error: Binary not found in build directory."
     echo "Please run 'make build' first to create the binary."
     exit 1
@@ -73,9 +51,9 @@ echo "Initializing configuration..."
 CLEANUP_SCRIPT=$(mktemp)
 chmod +x "$CLEANUP_SCRIPT"
 
-# Check if we're in a git repository or using a temporary directory
-if [ -d ".git" ] || [ "$CLEANUP_TEMP" = true ]; then
-    echo "Detected installation from git repository or one-liner."
+# Check if we're in a git repository
+if [ -d ".git" ]; then
+    echo "Detected installation from git repository."
 
     # Store the current directory path for cleanup
     REPO_DIR="$SCRIPT_DIR"
