@@ -23,39 +23,20 @@
 
 ## 📥 Installation
 
-### Installation Options
-
-#### Option 1: One-liner Installation (Quickest)
+### One-line Installation (Recommended)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/eyeskiller/fail2ban-notifier/master/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/eyeskiller/fail2ban-notifier/refs/heads/main/install.sh | sudo bash
 ```
 
-#### Option 2: Using Pre-built Binaries (Recommended)
+This installation script will:
+1. Check if you're running as root
+2. Download the repository from GitHub
+3. Install the binary from the build directory (or build it if not available)
+4. Set up all necessary configurations
+5. Clean up by removing the downloaded repository
 
-If you have downloaded a release with pre-built binaries:
-
-```bash
-sudo ./install.sh
-```
-
-This will use the existing binary in the `build` directory and install all necessary files.
-
-#### Option 3: Manual Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/eyeskiller/fail2ban-notifier.git
-   cd fail2ban-notifier
-   ```
-
-2. Build and install:
-   ```bash
-   make build
-   sudo ./install.sh
-   ```
-
-The installation script will:
+The installation process will:
 - Install the binary to `/usr/local/bin/fail2ban-notify`
 - Copy configuration files to `/etc/fail2ban/action.d/`
 - Copy connector scripts to `/etc/fail2ban/connectors/`

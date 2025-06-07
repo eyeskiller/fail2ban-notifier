@@ -11,15 +11,39 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-# Get script directory
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-cd "$SCRIPT_DIR"
+# Check if fail2ban-notify is already installed
+if [ -f "/usr/local/bin/fail2ban-notify" ]; then
+    echo "fail2ban-notify is already installed on your system."
+    read -p "Do you want to reinstall it? (y/n): " choice
+    case "$choice" in 
+        y|Y ) echo "Proceeding with reinstallation...";;
+        * ) echo "Installation cancelled."; exit 0;;
+    esac
+fi
 
-# Check if binary exists
+# Create a temporary directory for the repository
+TEMP_DIR=$(mktemp -d)
+echo "Created temporary directory: $TEMP_DIR"
+
+# Download the repository from GitHub
+echo "Downloading fail2ban-notifier from GitHub..."
+git clone https://github.com/eyeskiller/fail2ban-notifier.git "$TEMP_DIR"
+echo "Repository downloaded successfully."
+
+# Change to the repository directory
+cd "$TEMP_DIR"
+
+# Check if binary exists in the build directory
 if [ ! -f "build/fail2ban-notify" ]; then
-    echo "Error: Binary not found in build directory."
-    echo "Please run 'make build' first to create the binary."
-    exit 1
+    echo "Pre-built binary not found. Building from source..."
+    make build
+    if [ ! -f "build/fail2ban-notify" ]; then
+        echo "Error: Failed to build binary."
+        echo "Please check build dependencies and try again."
+        rm -rf "$TEMP_DIR"
+        exit 1
+    fi
+    echo "Binary built successfully."
 fi
 
 # Install binary
@@ -51,29 +75,18 @@ echo "Initializing configuration..."
 CLEANUP_SCRIPT=$(mktemp)
 chmod +x "$CLEANUP_SCRIPT"
 
-# Check if we're in a git repository
-if [ -d ".git" ]; then
-    echo "Detected installation from git repository."
-
-    # Store the current directory path for cleanup
-    REPO_DIR="$SCRIPT_DIR"
-
-    # Create a cleanup script that will run after this script exits
-    cat > "$CLEANUP_SCRIPT" << EOF
+# Create a cleanup script that will run after this script exits
+cat > "$CLEANUP_SCRIPT" << EOF
 #!/bin/bash
 echo "Performing cleanup..."
-rm -rf "$REPO_DIR"
-echo "Removed source directory from $REPO_DIR"
+rm -rf "$TEMP_DIR"
+echo "Removed temporary directory: $TEMP_DIR"
 rm -f "\$0"  # Self-delete this cleanup script
 EOF
 
-    echo "Will remove source directory after installation."
-    # Schedule the cleanup to run after this script exits
-    trap "$CLEANUP_SCRIPT" EXIT
-else
-    # No cleanup needed, remove the cleanup script
-    rm -f "$CLEANUP_SCRIPT"
-fi
+echo "Will remove temporary directory after installation."
+# Schedule the cleanup to run after this script exits
+trap "$CLEANUP_SCRIPT" EXIT
 
 echo "=== Installation complete! ==="
 echo "fail2ban-notifier has been installed to /usr/local/bin/fail2ban-notify"
