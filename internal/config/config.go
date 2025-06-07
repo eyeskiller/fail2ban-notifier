@@ -7,6 +7,25 @@ import (
 	"path/filepath"
 )
 
+// Connector types
+const (
+	ConnectorTypeScript     = "script"
+	ConnectorTypeExecutable = "executable"
+	ConnectorTypeHTTP       = "http"
+)
+
+// GeoIP service types
+const (
+	GeoIPServiceIPAPI         = "ipapi"
+	GeoIPServiceIPGeolocation = "ipgeolocation"
+)
+
+// File permissions
+const (
+	DirPermission  = 0755
+	FilePermission = 0600
+)
+
 // Config represents the application configuration
 type Config struct {
 	Connectors    []ConnectorConfig `json:"connectors"`
@@ -95,11 +114,60 @@ func SaveConfig(configPath string, config *Config) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	if err := os.WriteFile(configPath, data, FilePermission); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
 	return nil
+}
+
+// validateConnector validates a single connector configuration
+func validateConnector(config *Config, i int, connector ConnectorConfig) error {
+	if connector.Name == "" {
+		return fmt.Errorf("connector[%d]: name cannot be empty", i)
+	}
+
+	if connector.Type == "" {
+		return fmt.Errorf("connector[%d] (%s): type cannot be empty", i, connector.Name)
+	}
+
+	validTypes := []string{ConnectorTypeScript, ConnectorTypeExecutable, ConnectorTypeHTTP}
+	isValidType := false
+	for _, t := range validTypes {
+		if connector.Type == t {
+			isValidType = true
+			break
+		}
+	}
+
+	if !isValidType {
+		return fmt.Errorf("connector[%d] (%s): invalid type '%s', must be '%s', '%s', or '%s'",
+			i, connector.Name, connector.Type, ConnectorTypeScript, ConnectorTypeExecutable, ConnectorTypeHTTP)
+	}
+
+	if connector.Type != ConnectorTypeHTTP && connector.Path == "" {
+		return fmt.Errorf("connector[%d] (%s): path cannot be empty for type '%s'", i, connector.Name, connector.Type)
+	}
+
+	if connector.Type == ConnectorTypeHTTP {
+		if _, ok := connector.Settings["url"]; !ok {
+			return fmt.Errorf("connector[%d] (%s): HTTP connector must have 'url' setting", i, connector.Name)
+		}
+	}
+
+	return nil
+}
+
+// validateGeoIPConfig validates the GeoIP configuration
+func validateGeoIPConfig(config *Config) {
+	// Validate GeoIP config
+	if config.GeoIP.Service != GeoIPServiceIPAPI && config.GeoIP.Service != GeoIPServiceIPGeolocation {
+		config.GeoIP.Service = GeoIPServiceIPAPI
+	}
+
+	if config.GeoIP.TTL <= 0 {
+		config.GeoIP.TTL = 3600
+	}
 }
 
 // ValidateConfig validates the configuration
@@ -112,29 +180,13 @@ func ValidateConfig(config *Config) error {
 		config.Timeout = 30
 	}
 
+	// Validate each connector
 	for i, connector := range config.Connectors {
-		if connector.Name == "" {
-			return fmt.Errorf("connector[%d]: name cannot be empty", i)
+		if err := validateConnector(config, i, connector); err != nil {
+			return err
 		}
 
-		if connector.Type == "" {
-			return fmt.Errorf("connector[%d] (%s): type cannot be empty", i, connector.Name)
-		}
-
-		if connector.Type != "script" && connector.Type != "executable" && connector.Type != "http" {
-			return fmt.Errorf("connector[%d] (%s): invalid type '%s', must be 'script', 'executable', or 'http'", i, connector.Name, connector.Type)
-		}
-
-		if connector.Type != "http" && connector.Path == "" {
-			return fmt.Errorf("connector[%d] (%s): path cannot be empty for type '%s'", i, connector.Name, connector.Type)
-		}
-
-		if connector.Type == "http" {
-			if _, ok := connector.Settings["url"]; !ok {
-				return fmt.Errorf("connector[%d] (%s): HTTP connector must have 'url' setting", i, connector.Name)
-			}
-		}
-
+		// Set default values
 		if connector.Timeout <= 0 {
 			config.Connectors[i].Timeout = config.Timeout
 		}
@@ -148,14 +200,8 @@ func ValidateConfig(config *Config) error {
 		}
 	}
 
-	// Validate GeoIP config
-	if config.GeoIP.Service != "ipapi" && config.GeoIP.Service != "ipgeolocation" {
-		config.GeoIP.Service = "ipapi"
-	}
-
-	if config.GeoIP.TTL <= 0 {
-		config.GeoIP.TTL = 3600
-	}
+	// Validate GeoIP configuration
+	validateGeoIPConfig(config)
 
 	return nil
 }
@@ -208,104 +254,135 @@ func (c *Config) UpdateConnector(name string, updatedConnector ConnectorConfig) 
 	return false
 }
 
+// createDiscordConnector creates a sample Discord connector
+func createDiscordConnector() ConnectorConfig {
+	return ConnectorConfig{
+		Name:    "discord",
+		Type:    ConnectorTypeScript,
+		Enabled: false,
+		Path:    "/etc/fail2ban/connectors/discord.sh",
+		Settings: map[string]string{
+			"DISCORD_WEBHOOK_URL": "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN",
+			"DISCORD_USERNAME":    "Fail2Ban",
+			"DISCORD_AVATAR_URL":  "",
+		},
+		Timeout:     30,
+		RetryCount:  2,
+		RetryDelay:  5,
+		Description: "Send notifications to Discord via webhook",
+	}
+}
+
+// createTeamsConnector creates a sample Microsoft Teams connector
+func createTeamsConnector() ConnectorConfig {
+	return ConnectorConfig{
+		Name:    "teams",
+		Type:    ConnectorTypeScript,
+		Enabled: false,
+		Path:    "/etc/fail2ban/connectors/teams.sh",
+		Settings: map[string]string{
+			"TEAMS_WEBHOOK_URL": "https://your-tenant.webhook.office.com/webhookb2/YOUR_WEBHOOK_URL",
+		},
+		Timeout:     30,
+		RetryCount:  2,
+		RetryDelay:  5,
+		Description: "Send notifications to Microsoft Teams via webhook",
+	}
+}
+
+// createSlackConnector creates a sample Slack connector
+func createSlackConnector() ConnectorConfig {
+	return ConnectorConfig{
+		Name:    "slack",
+		Type:    ConnectorTypeScript,
+		Enabled: false,
+		Path:    "/etc/fail2ban/connectors/slack.sh",
+		Settings: map[string]string{
+			"SLACK_WEBHOOK_URL": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK",
+			"SLACK_CHANNEL":     "#security",
+			"SLACK_USERNAME":    "fail2ban",
+			"SLACK_ICON_EMOJI":  ":cop:",
+		},
+		Timeout:     30,
+		RetryCount:  2,
+		RetryDelay:  5,
+		Description: "Send notifications to Slack via webhook",
+	}
+}
+
+// createTelegramConnector creates a sample Telegram connector
+func createTelegramConnector() ConnectorConfig {
+	return ConnectorConfig{
+		Name:    "telegram",
+		Type:    ConnectorTypeScript,
+		Enabled: false,
+		Path:    "/etc/fail2ban/connectors/telegram.sh",
+		Settings: map[string]string{
+			"TELEGRAM_BOT_TOKEN": "YOUR_BOT_TOKEN",
+			"TELEGRAM_CHAT_ID":   "YOUR_CHAT_ID",
+		},
+		Timeout:     30,
+		RetryCount:  2,
+		RetryDelay:  5,
+		Description: "Send notifications to Telegram via bot API",
+	}
+}
+
+// createEmailConnector creates a sample Email connector
+func createEmailConnector() ConnectorConfig {
+	return ConnectorConfig{
+		Name:    "email",
+		Type:    ConnectorTypeScript,
+		Enabled: false,
+		Path:    "/etc/fail2ban/connectors/email.py",
+		Settings: map[string]string{
+			"EMAIL_SMTP_SERVER":    "localhost",
+			"EMAIL_SMTP_PORT":      "587",
+			"EMAIL_SMTP_USER":      "",
+			"EMAIL_SMTP_PASSWORD":  "",
+			"EMAIL_SMTP_TLS":       "true",
+			"EMAIL_FROM":           "fail2ban@localhost",
+			"EMAIL_TO":             "admin@localhost",
+			"EMAIL_SUBJECT_PREFIX": "[Fail2Ban]",
+		},
+		Timeout:     60,
+		RetryCount:  3,
+		RetryDelay:  10,
+		Description: "Send notifications via email using SMTP",
+	}
+}
+
+// createWebhookConnector creates a sample webhook connector
+func createWebhookConnector() ConnectorConfig {
+	return ConnectorConfig{
+		Name:    "webhook",
+		Type:    ConnectorTypeHTTP,
+		Enabled: false,
+		Path:    "",
+		Settings: map[string]string{
+			"url":                  "https://your-api.com/webhook",
+			"header_Content-Type":  "application/json",
+			"header_Authorization": "Bearer YOUR_TOKEN",
+		},
+		Timeout:     30,
+		RetryCount:  2,
+		RetryDelay:  5,
+		Description: "Send notifications to a custom HTTP endpoint",
+	}
+}
+
 // CreateSampleConfig creates a configuration with sample connectors
 func CreateSampleConfig() *Config {
 	config := DefaultConfig()
 
+	// Add sample connectors
 	sampleConnectors := []ConnectorConfig{
-		{
-			Name:        "discord",
-			Type:        "script",
-			Enabled:     false,
-			Path:        "/etc/fail2ban/connectors/discord.sh",
-			Settings:    map[string]string{
-				"DISCORD_WEBHOOK_URL": "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN",
-				"DISCORD_USERNAME":    "Fail2Ban",
-				"DISCORD_AVATAR_URL":  "",
-			},
-			Timeout:     30,
-			RetryCount:  2,
-			RetryDelay:  5,
-			Description: "Send notifications to Discord via webhook",
-		},
-		{
-			Name:        "teams",
-			Type:        "script",
-			Enabled:     false,
-			Path:        "/etc/fail2ban/connectors/teams.sh",
-			Settings:    map[string]string{
-				"TEAMS_WEBHOOK_URL": "https://your-tenant.webhook.office.com/webhookb2/YOUR_WEBHOOK_URL",
-			},
-			Timeout:     30,
-			RetryCount:  2,
-			RetryDelay:  5,
-			Description: "Send notifications to Microsoft Teams via webhook",
-		},
-		{
-			Name:        "slack",
-			Type:        "script",
-			Enabled:     false,
-			Path:        "/etc/fail2ban/connectors/slack.sh",
-			Settings:    map[string]string{
-				"SLACK_WEBHOOK_URL": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK",
-				"SLACK_CHANNEL":     "#security",
-				"SLACK_USERNAME":    "fail2ban",
-				"SLACK_ICON_EMOJI":  ":cop:",
-			},
-			Timeout:     30,
-			RetryCount:  2,
-			RetryDelay:  5,
-			Description: "Send notifications to Slack via webhook",
-		},
-		{
-			Name:        "telegram",
-			Type:        "script",
-			Enabled:     false,
-			Path:        "/etc/fail2ban/connectors/telegram.sh",
-			Settings:    map[string]string{
-				"TELEGRAM_BOT_TOKEN": "YOUR_BOT_TOKEN",
-				"TELEGRAM_CHAT_ID":   "YOUR_CHAT_ID",
-			},
-			Timeout:     30,
-			RetryCount:  2,
-			RetryDelay:  5,
-			Description: "Send notifications to Telegram via bot API",
-		},
-		{
-			Name:        "email",
-			Type:        "script",
-			Enabled:     false,
-			Path:        "/etc/fail2ban/connectors/email.py",
-			Settings:    map[string]string{
-				"EMAIL_SMTP_SERVER":   "localhost",
-				"EMAIL_SMTP_PORT":     "587",
-				"EMAIL_SMTP_USER":     "",
-				"EMAIL_SMTP_PASSWORD": "",
-				"EMAIL_SMTP_TLS":      "true",
-				"EMAIL_FROM":          "fail2ban@localhost",
-				"EMAIL_TO":            "admin@localhost",
-				"EMAIL_SUBJECT_PREFIX": "[Fail2Ban]",
-			},
-			Timeout:     60,
-			RetryCount:  3,
-			RetryDelay:  10,
-			Description: "Send notifications via email using SMTP",
-		},
-		{
-			Name:        "webhook",
-			Type:        "http",
-			Enabled:     false,
-			Path:        "",
-			Settings:    map[string]string{
-				"url":                  "https://your-api.com/webhook",
-				"header_Content-Type":  "application/json",
-				"header_Authorization": "Bearer YOUR_TOKEN",
-			},
-			Timeout:     30,
-			RetryCount:  2,
-			RetryDelay:  5,
-			Description: "Send notifications to a custom HTTP endpoint",
-		},
+		createDiscordConnector(),
+		createTeamsConnector(),
+		createSlackConnector(),
+		createTelegramConnector(),
+		createEmailConnector(),
+		createWebhookConnector(),
 	}
 
 	config.Connectors = sampleConnectors

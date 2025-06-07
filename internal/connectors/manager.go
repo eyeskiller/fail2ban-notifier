@@ -19,6 +19,23 @@ import (
 	"github.com/eyeskiller/fail2ban-notifier/pkg/types"
 )
 
+// Script file extensions
+const (
+	ExtShell   = ".sh"
+	ExtBash    = ".bash"
+	ExtPython  = ".py"
+	ExtNode    = ".js"
+	ExtRuby    = ".rb"
+	ExtPerl    = ".pl"
+)
+
+// HTTP constants
+const (
+	ContentTypeJSON = "application/json"
+	UserAgent       = "fail2ban-notify/2.0"
+	HTTPMethodPost  = "POST"
+)
+
 // Manager manages and executes connectors
 type Manager struct {
 	config *config.Config
@@ -95,11 +112,11 @@ func (m *Manager) Execute(connectorName string, data types.NotificationData) err
 		return fmt.Errorf("connector %s is disabled", connectorName)
 	}
 
-	return m.executeConnector(*connector, data)
+	return m.executeConnector(connector, data)
 }
 
 // executeConnector executes a single connector with retry logic
-func (m *Manager) executeConnector(connector config.ConnectorConfig, data types.NotificationData) error {
+func (m *Manager) executeConnector(connector *config.ConnectorConfig, data types.NotificationData) error {
 	var lastErr error
 
 	for attempt := 0; attempt <= connector.RetryCount; attempt++ {
@@ -113,9 +130,9 @@ func (m *Manager) executeConnector(connector config.ConnectorConfig, data types.
 
 		var err error
 		switch connector.Type {
-		case "script", "executable":
+		case config.ConnectorTypeScript, config.ConnectorTypeExecutable:
 			err = m.executeScript(connector, data)
-		case "http":
+		case config.ConnectorTypeHTTP:
 			err = m.executeHTTP(connector, data)
 		default:
 			return fmt.Errorf("unknown connector type: %s", connector.Type)
@@ -134,8 +151,28 @@ func (m *Manager) executeConnector(connector config.ConnectorConfig, data types.
 	return fmt.Errorf("connector %s failed after %d attempts: %w", connector.Name, connector.RetryCount+1, lastErr)
 }
 
+// getInterpreter returns the appropriate interpreter for a script based on its extension
+func getInterpreter(scriptPath string) (string, []string) {
+	ext := filepath.Ext(scriptPath)
+	switch ext {
+	case ExtShell, ExtBash:
+		return "bash", []string{scriptPath}
+	case ExtPython:
+		return "python3", []string{scriptPath}
+	case ExtNode:
+		return "node", []string{scriptPath}
+	case ExtRuby:
+		return "ruby", []string{scriptPath}
+	case ExtPerl:
+		return "perl", []string{scriptPath}
+	default:
+		// Try to execute directly (assumes shebang)
+		return scriptPath, []string{}
+	}
+}
+
 // executeScript executes a script or executable connector
-func (m *Manager) executeScript(connector config.ConnectorConfig, data types.NotificationData) error {
+func (m *Manager) executeScript(connector *config.ConnectorConfig, data types.NotificationData) error {
 	// Check if file exists and is executable
 	if _, err := os.Stat(connector.Path); os.IsNotExist(err) {
 		return fmt.Errorf("connector script not found: %s", connector.Path)
@@ -143,51 +180,50 @@ func (m *Manager) executeScript(connector config.ConnectorConfig, data types.Not
 
 	// Prepare the command
 	var cmd *exec.Cmd
+	var interpreter string
+	var args []string
 
-	if connector.Type == "script" {
+	if connector.Type == config.ConnectorTypeScript {
 		// Determine interpreter based on file extension
-		ext := filepath.Ext(connector.Path)
-		switch ext {
-		case ".sh", ".bash":
-			cmd = exec.Command("bash", connector.Path)
-		case ".py":
-			cmd = exec.Command("python3", connector.Path)
-		case ".js":
-			cmd = exec.Command("node", connector.Path)
-		case ".rb":
-			cmd = exec.Command("ruby", connector.Path)
-		case ".pl":
-			cmd = exec.Command("perl", connector.Path)
-		default:
-			// Try to execute directly (assumes shebang)
-			cmd = exec.Command(connector.Path)
-		}
+		interpreter, args = getInterpreter(connector.Path)
 	} else {
 		// Execute as binary
-		cmd = exec.Command(connector.Path)
+		interpreter = connector.Path
+		args = []string{}
 	}
 
 	// Set up context with timeout
 	timeout := time.Duration(connector.Timeout) * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	cmd = exec.CommandContext(ctx, cmd.Args[0], cmd.Args[1:]...)
+
+	// Create command with context
+	if len(args) > 0 {
+		cmd = exec.CommandContext(ctx, interpreter, args...)
+	} else {
+		cmd = exec.CommandContext(ctx, interpreter)
+	}
 
 	// Prepare environment variables
 	env := os.Environ()
 
-	// Add notification data as environment variables
-	env = append(env, fmt.Sprintf("F2B_IP=%s", data.IP))
-	env = append(env, fmt.Sprintf("F2B_JAIL=%s", data.Jail))
-	env = append(env, fmt.Sprintf("F2B_ACTION=%s", data.Action))
-	env = append(env, fmt.Sprintf("F2B_TIME=%s", data.Time.Format(time.RFC3339)))
-	env = append(env, fmt.Sprintf("F2B_TIMESTAMP=%d", data.Time.Unix()))
-	env = append(env, fmt.Sprintf("F2B_COUNTRY=%s", data.Country))
-	env = append(env, fmt.Sprintf("F2B_REGION=%s", data.Region))
-	env = append(env, fmt.Sprintf("F2B_CITY=%s", data.City))
-	env = append(env, fmt.Sprintf("F2B_ISP=%s", data.ISP))
-	env = append(env, fmt.Sprintf("F2B_HOSTNAME=%s", data.Hostname))
-	env = append(env, fmt.Sprintf("F2B_FAILURES=%d", data.Failures))
+	// Create a slice for environment variables
+	envVars := []string{
+		fmt.Sprintf("F2B_IP=%s", data.IP),
+		fmt.Sprintf("F2B_JAIL=%s", data.Jail),
+		fmt.Sprintf("F2B_ACTION=%s", data.Action),
+		fmt.Sprintf("F2B_TIME=%s", data.Time.Format(time.RFC3339)),
+		fmt.Sprintf("F2B_TIMESTAMP=%d", data.Time.Unix()),
+		fmt.Sprintf("F2B_COUNTRY=%s", data.Country),
+		fmt.Sprintf("F2B_REGION=%s", data.Region),
+		fmt.Sprintf("F2B_CITY=%s", data.City),
+		fmt.Sprintf("F2B_ISP=%s", data.ISP),
+		fmt.Sprintf("F2B_HOSTNAME=%s", data.Hostname),
+		fmt.Sprintf("F2B_FAILURES=%d", data.Failures),
+	}
+
+	// Add all environment variables at once
+	env = append(env, envVars...)
 
 	// Add custom settings as environment variables
 	for key, value := range connector.Settings {
@@ -231,7 +267,7 @@ func (m *Manager) executeScript(connector config.ConnectorConfig, data types.Not
 }
 
 // executeHTTP executes an HTTP connector
-func (m *Manager) executeHTTP(connector config.ConnectorConfig, data types.NotificationData) error {
+func (m *Manager) executeHTTP(connector *config.ConnectorConfig, data types.NotificationData) error {
 	url, ok := connector.Settings["url"]
 	if !ok {
 		return fmt.Errorf("HTTP connector missing 'url' setting")
@@ -243,15 +279,20 @@ func (m *Manager) executeHTTP(connector config.ConnectorConfig, data types.Notif
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
 
-	// Create request
-	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonData))
+	// Set up context with timeout
+	timeout := time.Duration(connector.Timeout) * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// Create request with context
+	req, err := http.NewRequestWithContext(ctx, HTTPMethodPost, url, bytes.NewReader(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// Set default headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "fail2ban-notify/2.0")
+	req.Header.Set("Content-Type", ContentTypeJSON)
+	req.Header.Set("User-Agent", UserAgent)
 
 	// Set custom headers from settings
 	for key, value := range connector.Settings {
@@ -261,9 +302,8 @@ func (m *Manager) executeHTTP(connector config.ConnectorConfig, data types.Notif
 		}
 	}
 
-	// Set up HTTP client with timeout
-	timeout := time.Duration(connector.Timeout) * time.Second
-	client := &http.Client{Timeout: timeout}
+	// Set up HTTP client
+	client := &http.Client{}
 
 	// Execute request
 	resp, err := client.Do(req)
@@ -378,13 +418,13 @@ func (m *Manager) TestConnector(connectorName string, testData *types.Notificati
 		connector.Enabled = originalEnabled
 	}()
 
-	return m.executeConnector(*connector, *testData)
+	return m.executeConnector(connector, *testData)
 }
 
 // ValidateConnector validates a connector configuration
-func (m *Manager) ValidateConnector(connector config.ConnectorConfig) error {
+func (m *Manager) ValidateConnector(connector *config.ConnectorConfig) error {
 	switch connector.Type {
-	case "script", "executable":
+	case config.ConnectorTypeScript, config.ConnectorTypeExecutable:
 		// Check if file exists
 		if _, err := os.Stat(connector.Path); os.IsNotExist(err) {
 			return fmt.Errorf("connector script not found: %s", connector.Path)
@@ -400,7 +440,7 @@ func (m *Manager) ValidateConnector(connector config.ConnectorConfig) error {
 			return fmt.Errorf("connector file is not executable: %s", connector.Path)
 		}
 
-	case "http":
+	case config.ConnectorTypeHTTP:
 		// Validate URL setting
 		if _, ok := connector.Settings["url"]; !ok {
 			return fmt.Errorf("HTTP connector must have 'url' setting")
@@ -417,7 +457,10 @@ func (m *Manager) ValidateConnector(connector config.ConnectorConfig) error {
 func (m *Manager) GetConnectorStatus() map[string]ConnectorStatus {
 	status := make(map[string]ConnectorStatus)
 
-	for _, connector := range m.config.Connectors {
+	for i := range m.config.Connectors {
+		// Get a pointer to the connector
+		connector := &m.config.Connectors[i]
+
 		connStatus := ConnectorStatus{
 			Name:        connector.Name,
 			Type:        connector.Type,

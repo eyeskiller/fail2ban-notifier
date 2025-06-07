@@ -291,6 +291,12 @@ sudo fail2ban-notify -debug -ip="192.168.1.100" -jail="sshd" -action="ban"
 
 ## 🏗️ Development
 
+### CI/CD and Artifacts
+
+This project uses self-hosted runners for CI/CD and stores build artifacts locally on the runner instead of using GitHub's artifact storage. This approach avoids GitHub's storage quota limitations.
+
+For information on how to access these artifacts, see [ARTIFACTS.md](docs/ARTIFACTS.md).
+
 ### Building
 
 ```bash

@@ -57,12 +57,14 @@ jobs:
         run: |
           go tool cover -html=covprofile -o coverage.html
 
-      - name: Upload coverage to GitHub
+      - name: Store coverage locally
         if: matrix.go-version == '1.21'
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.html
+        run: |
+          # Create artifacts directory if it doesn't exist
+          mkdir -p $HOME/runner_artifacts/coverage
+          # Copy coverage report to artifacts directory
+          cp coverage.html $HOME/runner_artifacts/coverage/coverage-${{ github.sha }}.html
+          echo "Coverage report stored at $HOME/runner_artifacts/coverage/coverage-${{ github.sha }}.html"
 
   test-without-race:
     name: Test (No Race Detection)
@@ -83,11 +85,13 @@ jobs:
         run: |
           go test -covermode count -coverprofile=coverage-norace.out ./...
 
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-norace
-          path: coverage-norace.out
+      - name: Store coverage locally
+        run: |
+          # Create artifacts directory if it doesn't exist
+          mkdir -p $HOME/runner_artifacts/coverage
+          # Copy coverage report to artifacts directory
+          cp coverage-norace.out $HOME/runner_artifacts/coverage/coverage-norace-${{ github.sha }}.out
+          echo "Coverage report stored at $HOME/runner_artifacts/coverage/coverage-norace-${{ github.sha }}.out"
 
   lint:
     name: Lint
@@ -121,10 +125,21 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      - name: Install Gosec and dependencies
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.22.3
+          sudo apt-get update
+          sudo apt-get install -y jq
+
       - name: Run Gosec Security Scanner
-        uses: securego/gosec@master
-        with:
-          args: './...'
+        run: |
+          gosec -fmt=json -out=results.json ./...
+          cat results.json | jq
+          BUGS=$(jq '.Golang.TotalBugs' results.json)
+          if [ "$BUGS" -gt 0 ]; then
+            echo "Security issues found!"
+            exit 1
+          fi
 
   build:
     name: Build
@@ -167,12 +182,15 @@ jobs:
           # Build for Windows
           GOOS=windows GOARCH=amd64 go build -o dist/fail2ban-notify-windows-amd64.exe ./cmd/fail2ban-notify
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: binaries-${{ github.sha }}
-          path: dist/
-          retention-days: 30
+      - name: Store build artifacts locally
+        run: |
+          # Create artifacts directory if it doesn't exist
+          mkdir -p $HOME/runner_artifacts/binaries
+          # Create a directory for this specific build
+          mkdir -p $HOME/runner_artifacts/binaries/${{ github.sha }}
+          # Copy binaries to artifacts directory
+          cp -r dist/* $HOME/runner_artifacts/binaries/${{ github.sha }}/
+          echo "Build artifacts stored at $HOME/runner_artifacts/binaries/${{ github.sha }}/"
 
   integration-test:
     name: Integration Tests
@@ -183,11 +201,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: binaries-${{ github.sha }}
-          path: dist/
+      - name: Use locally stored build artifacts
+        run: |
+          # Create dist directory if it doesn't exist
+          mkdir -p dist
+          # Copy artifacts from local storage
+          cp -r $HOME/runner_artifacts/binaries/${{ github.sha }}/* dist/
+          echo "Using build artifacts from $HOME/runner_artifacts/binaries/${{ github.sha }}/"
 
       - name: Make binary executable
         run: chmod +x dist/fail2ban-notify-linux-amd64
@@ -408,12 +428,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload nightly artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: nightly-build-${{ github.sha }}
-          path: dist/
-          retention-days: 7
+      - name: Store nightly artifacts locally
+        run: |
+          # Create artifacts directory if it doesn't exist
+          mkdir -p $HOME/runner_artifacts/nightly
+          # Create a directory for this specific nightly build
+          NIGHTLY_DIR=$HOME/runner_artifacts/nightly/$(date +%Y-%m-%d)
+          mkdir -p $NIGHTLY_DIR
+          # Copy artifacts to nightly directory
+          cp -r dist/* $NIGHTLY_DIR/
+          echo "Nightly build artifacts stored at $NIGHTLY_DIR/"
+
+          # Clean up old nightly builds (keep last 7 days)
+          find $HOME/runner_artifacts/nightly -type d -mtime +7 -exec rm -rf {} \; 2>/dev/null || true
 
 ---
 # .github/workflows/dependency-update.yml
