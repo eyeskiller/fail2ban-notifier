@@ -54,7 +54,7 @@ Description: Modular notification system for Fail2Ban
   - Geographic information with automatic IP geolocation
   - Easy configuration with JSON-based config
   - Custom connector creation tools
-Homepage: https://github.com/YOUR_USERNAME/fail2ban-notify-go
+Homepage: https://github.com/eyeskiller/fail2ban-notifier
 EOF
 
 # Create postinst script

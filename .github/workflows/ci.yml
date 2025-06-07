@@ -12,20 +12,20 @@ env:
 jobs:
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       matrix:
         go-version: ['1.19', '1.20', '1.21']
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
         go-version: ${{ matrix.go-version }}
-    
+
     - name: Cache Go modules
       uses: actions/cache@v3
       with:
@@ -33,20 +33,20 @@ jobs:
         key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-${{ matrix.go-version }}-
-    
+
     - name: Download dependencies
       run: go mod download
-    
+
     - name: Verify dependencies
       run: go mod verify
-    
+
     - name: Run tests
       run: |
         go test -race -covermode atomic -coverprofile=covprofile ./...
-    
+
     - name: Install goveralls
       run: go install github.com/mattn/goveralls@latest
-      
+
     - name: Send coverage
       env:
         COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,17 +55,17 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: ubuntu-latest
-    
+    runs-on: self-hosted
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
-    
+
     - name: Run golangci-lint
       uses: golangci/golangci-lint-action@v3
       with:
@@ -74,17 +74,17 @@ jobs:
 
   security:
     name: Security Scan
-    runs-on: ubuntu-latest
-    
+    runs-on: self-hosted
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
-    
+
     - name: Run Gosec Security Scanner
       uses: securecodewarrior/github-action-gosec@master
       with:
@@ -92,29 +92,29 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [test, lint]
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    
+
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
         go-version: ${{ env.GO_VERSION }}
-    
+
     - name: Cache Go modules
       uses: actions/cache@v3
       with:
         path: ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
-    
+
     - name: Build for multiple platforms
       run: make build-all
-    
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v3
       with:
@@ -124,32 +124,32 @@ jobs:
 
   integration-test:
     name: Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build
-    
+
     services:
       fail2ban:
         image: crazymax/fail2ban:latest
         options: --privileged
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Download build artifacts
       uses: actions/download-artifact@v3
       with:
         name: binaries-${{ github.sha }}
         path: dist/
-    
+
     - name: Make binary executable
       run: chmod +x dist/fail2ban-notify-linux-amd64
-    
+
     - name: Install fail2ban
       run: |
         sudo apt-get update
         sudo apt-get install -y fail2ban curl
-    
+
     - name: Install fail2ban-notify
       run: |
         sudo cp dist/fail2ban-notify-linux-amd64 /usr/local/bin/fail2ban-notify
@@ -158,10 +158,10 @@ jobs:
         sudo cp connectors/*.sh /etc/fail2ban/connectors/
         sudo cp connectors/*.py /etc/fail2ban/connectors/
         sudo chmod +x /etc/fail2ban/connectors/*
-    
+
     - name: Initialize configuration
       run: sudo /usr/local/bin/fail2ban-notify -init
-    
+
     - name: Test connectors
       run: |
         # Test webhook connector (using httpbin for testing)
@@ -179,16 +179,16 @@ jobs:
 
   docker:
     name: Docker Build
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [test, lint]
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-    
+
     - name: Login to GitHub Container Registry
       if: github.event_name != 'pull_request'
       uses: docker/login-action@v3
@@ -196,7 +196,7 @@ jobs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
@@ -207,7 +207,7 @@ jobs:
           type=ref,event=pr
           type=sha,prefix={{branch}}-
           type=raw,value=latest,enable={{is_default_branch}}
-    
+
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:

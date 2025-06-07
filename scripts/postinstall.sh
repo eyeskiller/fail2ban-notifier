@@ -27,6 +27,6 @@ echo "Example:"
 echo "  action = iptables[name=SSH, port=ssh, protocol=tcp]"
 echo "           notify"
 echo ""
-echo "For more information, visit: https://github.com/eyeskiller/fail2ban-notify-go"
+echo "For more information, visit: https://github.com/eyeskiller/fail2ban-notifier-go"
 
 exit 0

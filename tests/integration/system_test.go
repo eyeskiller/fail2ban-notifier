@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/YOUR_USERNAME/fail2ban-notify-go/internal/config"
-	"github.com/YOUR_USERNAME/fail2ban-notify-go/internal/connectors"
-	"github.com/YOUR_USERNAME/fail2ban-notify-go/internal/geoip"
-	"github.com/YOUR_USERNAME/fail2ban-notify-go/pkg/types"
+	"github.com/eyeskiller/fail2ban-notifier/internal/config"
+	"github.com/eyeskiller/fail2ban-notifier/internal/connectors"
+	"github.com/eyeskiller/fail2ban-notifier/internal/geoip"
+	"github.com/eyeskiller/fail2ban-notifier/pkg/types"
 )
 
 func TestFullSystemIntegration(t *testing.T) {

@@ -44,7 +44,7 @@ nfpms:
     package_name: fail2ban-notify
     file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     vendor: eyeskiller
-    homepage: https://github.com/eyeskiller/fail2ban-notify-go
+    homepage: https://github.com/eyeskiller/fail2ban-notifier
     maintainer: eyeskiller <your-email@example.com>
     description: A modern, multi-platform notification system for Fail2Ban
     license: MIT
@@ -63,8 +63,8 @@ nfpms:
 
 dockers:
   - image_templates:
-      - "ghcr.io/eyeskiller/fail2ban-notify:{{ .Version }}"
-      - "ghcr.io/eyeskiller/fail2ban-notify:latest"
+      - "ghcr.io/eyeskiller/fail2ban-notifier:{{ .Version }}"
+      - "ghcr.io/eyeskiller/fail2ban-notifier:latest"
     dockerfile: Dockerfile.goreleaser
     build_flag_templates:
       - "--label=org.opencontainers.image.created={{.Date}}"

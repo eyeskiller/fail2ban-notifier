@@ -23,7 +23,7 @@ This guide will take you from an empty repository to a fully functional, product
 # Add README, .gitignore (Go), License (MIT)
 
 # 2. Clone locally
-git clone https://github.com/YOUR_USERNAME/fail2ban-notify-go.git
+git clone https://github.com/eyeskiller/fail2ban-notifier.git
 cd fail2ban-notify-go
 ```
 
@@ -34,7 +34,7 @@ cd fail2ban-notify-go
 mkdir -p {cmd/fail2ban-notify,internal/{config,connectors,geoip,version},pkg/types,connectors,configs,scripts,build/package/{deb,rpm,docker},docs,tests/{unit,integration,fixtures},.github/workflows}
 
 # Initialize Go module
-go mod init github.com/YOUR_USERNAME/fail2ban-notify-go
+go mod init github.com/eyeskiller/fail2ban-notifier
 
 # Create VERSION file
 echo "1.0.0" > VERSION
@@ -129,7 +129,7 @@ Add version information to main.go:
 
 ```go
 // Add to imports
-import "github.com/YOUR_USERNAME/fail2ban-notify-go/internal/version"
+import "github.com/eyeskiller/fail2ban-notifier/internal/version"
 
 // Add version flag handling
 if *version {
@@ -154,7 +154,7 @@ package unit
 
 import (
 	"testing"
-	"github.com/YOUR_USERNAME/fail2ban-notify-go/internal/version"
+	"github.com/eyeskiller/fail2ban-notifier/internal/version"
 )
 
 func TestGetVersion(t *testing.T) {
@@ -293,7 +293,7 @@ git push origin v1.0.0
 
 ```bash
 # Test installation script on clean system
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/fail2ban-notify-go/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/eyeskiller/fail2ban-notifier/main/scripts/install.sh | sudo bash
 ```
 
 ## 🌟 Phase 6: Production Deployment
@@ -302,7 +302,7 @@ curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/fail2ban-notify-go/ma
 
 ```bash
 # On your production server with fail2ban
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/fail2ban-notify-go/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/eyeskiller/fail2ban-notifier/main/scripts/install.sh | sudo bash
 
 # Configure your services
 sudo nano /etc/fail2ban/fail2ban-notify.json
@@ -341,9 +341,9 @@ sudo fail2ban-notify -ip="malicious.ip.address" -jail="sshd" -action="ban"
 # Create issue templates
 
 # Add badges to README
-[![Build Status](https://github.com/YOUR_USERNAME/fail2ban-notify-go/workflows/CI/badge.svg)](https://github.com/YOUR_USERNAME/fail2ban-notify-go/actions)
-[![Release](https://img.shields.io/github/release/YOUR_USERNAME/fail2ban-notify-go.svg)](https://github.com/YOUR_USERNAME/fail2ban-notify-go/releases)
-[![Docker Pulls](https://img.shields.io/docker/pulls/YOUR_USERNAME/fail2ban-notify)](https://github.com/YOUR_USERNAME/fail2ban-notify-go/pkgs/container/fail2ban-notify)
+[![Build Status](https://github.com/eyeskiller/fail2ban-notifier/workflows/CI/badge.svg)](https://github.com/eyeskiller/fail2ban-notifier/actions)
+[![Release](https://img.shields.io/github/release/eyeskiller/fail2ban-notifier.svg)](https://github.com/eyeskiller/fail2ban-notifier/releases)
+[![Docker Pulls](https://img.shields.io/docker/pulls/YOUR_USERNAME/fail2ban-notify)](https://github.com/eyeskiller/fail2ban-notifier/pkgs/container/fail2ban-notify)
 ```
 
 ### Step 17: Enable Advanced Features

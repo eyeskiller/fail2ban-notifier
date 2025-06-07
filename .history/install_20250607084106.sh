@@ -13,7 +13,7 @@ BINARY_NAME="fail2ban-notify"
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/fail2ban"
 ACTION_DIR="/etc/fail2ban/action.d"
-GITHUB_REPO="your-username/fail2ban-notify-go" # Replace with actual repo
+GITHUB_REPO="eyeskiller/fail2ban-notifier"
 LATEST_RELEASE_URL="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
 
 echo -e "${BLUE}🔧 Fail2Ban Notify - Installation Script${NC}"

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/YOUR_USERNAME/fail2ban-notify-go/internal/config"
+	"github.com/eyeskiller/fail2ban-notifier/internal/config"
 )
 
 func TestDefaultConfig(t *testing.T) {

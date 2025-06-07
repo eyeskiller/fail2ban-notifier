@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/YOUR_USERNAME/fail2ban-notify-go/internal/config"
+	"github.com/eyeskiller/fail2ban-notifier/internal/config"
 )
 
 // GeoIPInfo represents geolocation information for an IP address

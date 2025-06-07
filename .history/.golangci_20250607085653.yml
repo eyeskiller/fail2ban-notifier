@@ -21,7 +21,7 @@ linters-settings:
   lll:
     line-length: 140
   goimports:
-    local-prefixes: github.com/YOUR_USERNAME/fail2ban-notify-go
+    local-prefixes: github.com/eyeskiller/fail2ban-notifier
   gocritic:
     enabled-tags:
       - diagnostic

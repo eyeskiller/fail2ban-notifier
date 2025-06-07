@@ -1,4 +1,4 @@
-module github.com/YOUR_USERNAME/fail2ban-notify-go
+module github.com/eyeskiller/fail2ban-notifier
 
 go 1.19
 

@@ -13,7 +13,7 @@ BINARY_NAME="fail2ban-notify"
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/fail2ban"
 ACTION_DIR="/etc/fail2ban/action.d"
-GITHUB_REPO="your-username/fail2ban-notify-go" # Replace with actual repo
+GITHUB_REPO="eyeskiller/fail2ban-notifier"
 LATEST_RELEASE_URL="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
 
 echo -e "${BLUE}🔧 Fail2Ban Notify - Installation Script${NC}"
@@ -64,7 +64,7 @@ echo -e "${BLUE}📊 Detected: ${OS}-${ARCH}${NC}"
 # Check if fail2ban is installed
 if ! command -v fail2ban-server &> /dev/null; then
     echo -e "${YELLOW}⚠️  fail2ban not found. Installing...${NC}"
-    
+
     if command -v apt-get &> /dev/null; then
         apt-get update && apt-get install -y fail2ban
     elif command -v yum &> /dev/null; then
@@ -77,7 +77,7 @@ if ! command -v fail2ban-server &> /dev/null; then
         echo -e "${RED}❌ Could not install fail2ban. Please install it manually.${NC}"
         exit 1
     fi
-    
+
     echo -e "${GREEN}✅ fail2ban installed${NC}"
 fi
 
@@ -123,19 +123,19 @@ import (
 
 func main() {
     fmt.Println("fail2ban-notify placeholder - replace with full implementation")
-    
+
     var (
         initConfig = flag.Bool("init", false, "Initialize configuration file")
         configPath = flag.String("config", "/etc/fail2ban/fail2ban-notify.json", "Path to configuration file")
     )
     flag.Parse()
-    
+
     if *initConfig {
         fmt.Printf("Would create config at: %s\n", *configPath)
         fmt.Println("Use the full implementation for actual functionality")
         return
     }
-    
+
     fmt.Println("Notification would be sent here")
 }
 EOF
@@ -164,17 +164,17 @@ before = iptables-common.conf
 # Option: actionstart
 # Notes.: command executed on demand at the first ban (or at the start of Fail2Ban if actionstart_on_demand is set to false).
 # Values: CMD
-actionstart = 
+actionstart =
 
 # Option: actionstop
 # Notes.: command executed at the stop of jail (or at the end of Fail2Ban)
 # Values: CMD
-actionstop = 
+actionstop =
 
 # Option: actioncheck
 # Notes.: command executed once before each actionban command
 # Values: CMD
-actioncheck = 
+actioncheck =
 
 # Option: actionban
 # Notes.: command executed when banning an IP. Take care that the

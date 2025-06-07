@@ -121,7 +121,7 @@ quick-install:
 	@echo "Creating quick installation script..."
 	@cat > quick-install.sh << 'EOF'
 #!/bin/bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/fail2ban-notify-go/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/eyeskiller/fail2ban-notifier/main/install.sh | bash
 EOF
 	@chmod +x quick-install.sh
 	@echo "Quick install script created: ./quick-install.sh"

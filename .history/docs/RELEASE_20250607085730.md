@@ -6,7 +6,7 @@
 
 ```bash
 # Clone and setup
-git clone https://github.com/YOUR_USERNAME/fail2ban-notify-go.git
+git clone https://github.com/eyeskiller/fail2ban-notifier.git
 cd fail2ban-notify-go
 
 # Setup development environment
@@ -219,7 +219,7 @@ brew upgrade fail2ban-notify
 
 ```bash
 # Install .deb package
-wget https://github.com/YOUR_USERNAME/fail2ban-notify-go/releases/download/v1.0.0/fail2ban-notify_1.0.0_amd64.deb
+wget https://github.com/eyeskiller/fail2ban-notifier/releases/download/v1.0.0/fail2ban-notify_1.0.0_amd64.deb
 sudo dpkg -i fail2ban-notify_1.0.0_amd64.deb
 
 # Or add APT repository (future enhancement)
@@ -229,7 +229,7 @@ sudo dpkg -i fail2ban-notify_1.0.0_amd64.deb
 
 ```bash
 # Install .rpm package
-wget https://github.com/YOUR_USERNAME/fail2ban-notify-go/releases/download/v1.0.0/fail2ban-notify-1.0.0-1.x86_64.rpm
+wget https://github.com/eyeskiller/fail2ban-notifier/releases/download/v1.0.0/fail2ban-notify-1.0.0-1.x86_64.rpm
 sudo rpm -i fail2ban-notify-1.0.0-1.x86_64.rpm
 
 # Or add YUM repository (

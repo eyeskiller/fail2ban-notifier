@@ -22,7 +22,7 @@ Version:        $VERSION
 Release:        1%{?dist}
 Summary:        Modular notification system for Fail2Ban
 License:        MIT
-URL:            https://github.com/YOUR_USERNAME/fail2ban-notify-go
+URL:            https://github.com/eyeskiller/fail2ban-notifier
 Source0:        %{name}-%{version}.tar.gz
 BuildArch:      $ARCH
 

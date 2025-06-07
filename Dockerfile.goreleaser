@@ -2,7 +2,7 @@ FROM alpine:3.18
 
 LABEL org.opencontainers.image.title="fail2ban-notify"
 LABEL org.opencontainers.image.description="A modern, multi-platform notification system for Fail2Ban"
-LABEL org.opencontainers.image.source="https://github.com/eyeskiller/fail2ban-notify-go"
+LABEL org.opencontainers.image.source="https://github.com/eyeskiller/fail2ban-notifier-go"
 LABEL org.opencontainers.image.licenses="MIT"
 
 # Install runtime dependencies

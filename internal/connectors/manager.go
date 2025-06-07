@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/YOUR_USERNAME/fail2ban-notify-go/internal/config"
-	"github.com/YOUR_USERNAME/fail2ban-notify-go/pkg/types"
+	"github.com/eyeskiller/fail2ban-notifier/internal/config"
+	"github.com/eyeskiller/fail2ban-notifier/pkg/types"
 )
 
 // Manager manages and executes connectors
