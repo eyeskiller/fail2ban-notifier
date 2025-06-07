@@ -1,3 +1,4 @@
+# .github/workflows/ci.yml
 name: CI
 
 on:
@@ -12,209 +13,454 @@ env:
 jobs:
   test:
     name: Test
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         go-version: ['1.19', '1.20', '1.21']
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ matrix.go-version }}
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
 
-    - name: Cache Go modules
-      uses: actions/cache@v3
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-${{ matrix.go-version }}-
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ matrix.go-version }}-
 
-    - name: Download dependencies
-      run: go mod download
+      - name: Download dependencies
+        run: go mod download
 
-    - name: Verify dependencies
-      run: go mod verify
+      - name: Verify dependencies
+        run: go mod verify
 
-    - name: Run tests
-      run: |
-        go test -race -covermode atomic -coverprofile=covprofile ./...
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libc6-dev
 
-    - name: Install goveralls
-      run: go install github.com/mattn/goveralls@latest
+      - name: Run tests with race detection
+        env:
+          CGO_ENABLED: 1
+        run: |
+          go test -race -covermode atomic -coverprofile=covprofile ./...
 
-    - name: Send coverage
-      env:
-        COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: goveralls -coverprofile=covprofile -service=github
-      if: matrix.go-version == '1.21'
+      - name: Generate coverage report
+        if: matrix.go-version == '1.21'
+        run: |
+          go tool cover -html=covprofile -o coverage.html
+
+      - name: Upload coverage to GitHub
+        if: matrix.go-version == '1.21'
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: coverage.html
+
+  test-without-race:
+    name: Test (No Race Detection)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run tests without race detection
+        env:
+          CGO_ENABLED: 0
+        run: |
+          go test -covermode count -coverprofile=coverage-norace.out ./...
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-norace
+          path: coverage-norace.out
 
   lint:
     name: Lint
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-    - name: Run golangci-lint
-      uses: golangci/golangci-lint-action@v3
-      with:
-        version: latest
-        args: --timeout=5m
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          args: --timeout=5m
 
   security:
     name: Security Scan
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-    - name: Run Gosec Security Scanner
-      uses: securecodewarrior/github-action-gosec@master
-      with:
-        args: './...'
+      - name: Run Gosec Security Scanner
+        uses: securecodewarrior/github-action-gosec@master
+        with:
+          args: './...'
 
   build:
     name: Build
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: [test, lint]
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-    - name: Cache Go modules
-      uses: actions/cache@v3
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
 
-    - name: Build for multiple platforms
-      run: make build-all
+      - name: Build for current platform
+        run: |
+          go build -v ./cmd/fail2ban-notify
 
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: binaries-${{ github.sha }}
-        path: dist/
-        retention-days: 30
+      - name: Build for multiple platforms
+        env:
+          CGO_ENABLED: 0
+        run: |
+          # Build for Linux
+          GOOS=linux GOARCH=amd64 go build -o dist/fail2ban-notify-linux-amd64 ./cmd/fail2ban-notify
+          GOOS=linux GOARCH=arm64 go build -o dist/fail2ban-notify-linux-arm64 ./cmd/fail2ban-notify
+          
+          # Build for macOS
+          GOOS=darwin GOARCH=amd64 go build -o dist/fail2ban-notify-darwin-amd64 ./cmd/fail2ban-notify
+          GOOS=darwin GOARCH=arm64 go build -o dist/fail2ban-notify-darwin-arm64 ./cmd/fail2ban-notify
+          
+          # Build for Windows
+          GOOS=windows GOARCH=amd64 go build -o dist/fail2ban-notify-windows-amd64.exe ./cmd/fail2ban-notify
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries-${{ github.sha }}
+          path: dist/
+          retention-days: 30
 
   integration-test:
     name: Integration Tests
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: build
 
-    services:
-      fail2ban:
-        image: crazymax/fail2ban:latest
-        options: --privileged
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Download build artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: binaries-${{ github.sha }}
-        path: dist/
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: binaries-${{ github.sha }}
+          path: dist/
 
-    - name: Make binary executable
-      run: chmod +x dist/fail2ban-notify-linux-amd64
+      - name: Make binary executable
+        run: chmod +x dist/fail2ban-notify-linux-amd64
 
-    - name: Install fail2ban
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y fail2ban curl
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fail2ban curl python3
 
-    - name: Install fail2ban-notify
-      run: |
-        sudo cp dist/fail2ban-notify-linux-amd64 /usr/local/bin/fail2ban-notify
-        sudo cp configs/notify.conf /etc/fail2ban/action.d/
-        sudo mkdir -p /etc/fail2ban/connectors
-        sudo cp connectors/*.sh /etc/fail2ban/connectors/
-        sudo cp connectors/*.py /etc/fail2ban/connectors/
-        sudo chmod +x /etc/fail2ban/connectors/*
+      - name: Install fail2ban-notify
+        run: |
+          sudo cp dist/fail2ban-notify-linux-amd64 /usr/local/bin/fail2ban-notify
+          sudo cp configs/notify.conf /etc/fail2ban/action.d/
+          sudo mkdir -p /etc/fail2ban/connectors
+          sudo cp connectors/*.sh /etc/fail2ban/connectors/
+          sudo cp connectors/*.py /etc/fail2ban/connectors/
+          sudo chmod +x /etc/fail2ban/connectors/*
 
-    - name: Initialize configuration
-      run: sudo /usr/local/bin/fail2ban-notify -init
+      - name: Initialize configuration
+        run: sudo /usr/local/bin/fail2ban-notify -init
 
-    - name: Test connectors
-      run: |
-        # Test webhook connector (using httpbin for testing)
-        export WEBHOOK_URL="https://httpbin.org/post"
-        export F2B_IP="192.168.1.100"
-        export F2B_JAIL="sshd"
-        export F2B_ACTION="ban"
-        export F2B_FAILURES="5"
-        
-        # Test fail2ban-notify
-        sudo /usr/local/bin/fail2ban-notify -ip="192.168.1.100" -jail="test" -action="ban" -debug
-        
-        # Test connector discovery
-        sudo /usr/local/bin/fail2ban-notify -discover
+      - name: Test basic functionality
+        run: |
+          # Test version
+          sudo /usr/local/bin/fail2ban-notify -version
+          
+          # Test discovery
+          sudo /usr/local/bin/fail2ban-notify -discover
+          
+          # Test status
+          sudo /usr/local/bin/fail2ban-notify -status
+          
+          # Test notification (without external services)
+          sudo /usr/local/bin/fail2ban-notify -ip="192.168.1.100" -jail="test" -action="ban" -debug
 
   docker:
     name: Docker Build
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: [test, lint]
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Login to GitHub Container Registry
-      if: github.event_name != 'pull_request'
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ghcr.io/${{ github.repository }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
 
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        platforms: linux/amd64,linux/arm64
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+---
+# .github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  test:
+    name: Test before release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Run tests
+        run: make test
+
+      - name: Run lint
+        run: make lint
+
+  goreleaser:
+    name: GoReleaser
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update installation script
+        run: |
+          # Update the installation script with the new version
+          TAG=${GITHUB_REF#refs/tags/}
+          sed -i "s/LATEST_VERSION=.*/LATEST_VERSION=\"$TAG\"/" scripts/install.sh
+          
+          # Commit updated script back to main branch
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git checkout main
+          git add scripts/install.sh
+          git commit -m "chore: update install script for $TAG" || exit 0
+          git push origin main
+
+  update-homebrew:
+    name: Update Homebrew
+    runs-on: ubuntu-latest
+    needs: goreleaser
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Update Homebrew formula
+        uses: mislav/bump-homebrew-formula-action@v3
+        with:
+          formula-name: fail2ban-notify
+          formula-path: Formula/fail2ban-notify.rb
+          homebrew-tap: ${{ github.repository_owner }}/homebrew-tap
+          download-url: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/fail2ban-notify_Darwin_x86_64.tar.gz
+          commit-message: |
+            {{formulaName}} {{version}}
+            
+            Created by https://github.com/mislav/bump-homebrew-formula-action
+        env:
+          COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}
+
+---
+# .github/workflows/nightly.yml
+name: Nightly Build
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Run at 2 AM UTC daily
+  workflow_dispatch:     # Allow manual trigger
+
+jobs:
+  nightly:
+    name: Nightly Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run GoReleaser (snapshot)
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --snapshot --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload nightly artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: nightly-build-${{ github.sha }}
+          path: dist/
+          retention-days: 7
+
+---
+# .github/workflows/dependency-update.yml
+name: Dependency Update
+
+on:
+  schedule:
+    - cron: '0 10 * * 1'  # Run every Monday at 10 AM UTC
+  workflow_dispatch:
+
+jobs:
+  update-dependencies:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Update dependencies
+        run: |
+          go get -u ./...
+          go mod tidy
+
+      - name: Run tests
+        run: make test
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update dependencies'
+          title: 'chore: update dependencies'
+          body: |
+            This PR updates Go dependencies to their latest versions.
+            
+            Changes:
+            - Updated all Go modules to latest versions
+            - Verified tests still pass
+            
+            Auto-generated by GitHub Actions.
+          branch: chore/update-dependencies
+          delete-branch: true
