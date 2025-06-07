@@ -11,38 +11,52 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-# Check for required dependencies
-echo "Checking dependencies..."
-command -v go >/dev/null 2>&1 || { echo "Error: Go is required but not installed. Please install Go first."; exit 1; }
-command -v git >/dev/null 2>&1 || { echo "Error: Git is required but not installed. Please install Git first."; exit 1; }
+# Get script directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+cd "$SCRIPT_DIR"
 
-# Create temporary directory
-TEMP_DIR=$(mktemp -d)
-echo "Created temporary directory: $TEMP_DIR"
-cd "$TEMP_DIR"
+# Check if binary exists
+if [ ! -f "build/fail2ban-notify" ]; then
+    echo "Error: Binary not found in build directory."
+    echo "Please run 'make build' first to create the binary."
+    exit 1
+fi
 
-# Clone repository
-echo "Cloning repository..."
-git clone https://github.com/eyeskiller/fail2ban-notifier.git
-cd fail2ban-notifier
+# Install binary
+echo "Installing fail2ban-notify binary..."
+install -m 755 build/fail2ban-notify /usr/local/bin/
 
-# Build
-echo "Building fail2ban-notifier..."
-make build
+# Create necessary directories
+echo "Creating configuration directories..."
+mkdir -p /etc/fail2ban/action.d
+mkdir -p /etc/fail2ban/connectors
 
-# Install
-echo "Installing fail2ban-notifier..."
-make install
+# Install configuration files
+echo "Installing configuration files..."
+install -m 644 configs/notify.conf /etc/fail2ban/action.d/
+install -m 644 configs/notify-enhanced.conf /etc/fail2ban/action.d/
+install -m 644 configs/jail.local.example /etc/fail2ban/
 
-# Clean up
-echo "Cleaning up..."
-cd /
-rm -rf "$TEMP_DIR"
+# Install connector scripts
+echo "Installing connector scripts..."
+for connector in connectors/*; do
+    install -m 755 "$connector" /etc/fail2ban/connectors/
+done
+
+# Initialize configuration
+echo "Initializing configuration..."
+/usr/local/bin/fail2ban-notify -init || echo "Could not initialize config (may need manual setup)"
+
+# No cleanup needed as we're using the local build
 
 echo "=== Installation complete! ==="
 echo "fail2ban-notifier has been installed to /usr/local/bin/fail2ban-notify"
 echo "Configuration file has been initialized at /etc/fail2ban/fail2ban-notify.json"
-echo "fail2ban action has been installed at /etc/fail2ban/action.d/notify.conf"
+echo "fail2ban actions have been installed at:"
+echo "  - /etc/fail2ban/action.d/notify.conf (standard)"
+echo "  - /etc/fail2ban/action.d/notify-enhanced.conf (enhanced)"
+echo "Connector scripts have been installed to /etc/fail2ban/connectors/"
+echo "Example jail configuration has been installed at /etc/fail2ban/jail.local.example"
 echo ""
 echo "Next steps:"
 echo "1. Configure your notification services by editing /etc/fail2ban/fail2ban-notify.json"
