@@ -84,11 +84,17 @@ func handleConnectorStatus(cfg *config.Config, logger *log.Logger) {
 		statusIcon := "❌"
 		if status.Status == "ready" {
 			statusIcon = "✅"
-		} else if status.Status == "disabled" {
+		} else if !status.Enabled {
 			statusIcon = "⚪"
 		}
 
-		fmt.Printf("%s %s [%s] - %s\n", statusIcon, name, status.Status, status.Type)
+		statusText := status.Status
+		if !status.Enabled {
+			statusText = "disabled"
+		} else if status.Status == "ready" {
+			statusText = "enabled"
+		}
+		fmt.Printf("%s %s [%s] - %s\n", statusIcon, name, statusText, status.Type)
 		if status.Description != "" {
 			fmt.Printf("   %s\n", status.Description)
 		}
@@ -98,7 +104,7 @@ func handleConnectorStatus(cfg *config.Config, logger *log.Logger) {
 	}
 
 	fmt.Println("")
-	fmt.Println("Legend: ✅ Ready  ⚪ Disabled  ❌ Invalid")
+	fmt.Println("Legend: ✅ Enabled  ⚪ Disabled  ❌ Invalid")
 }
 
 // handleTestConnector tests a specific connector
