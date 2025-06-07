@@ -25,7 +25,13 @@
 
 ### Installation Options
 
-#### Option 1: Using Pre-built Binaries (Recommended)
+#### Option 1: One-liner Installation (Quickest)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/eyeskiller/fail2ban-notifier/master/install.sh | sudo bash
+```
+
+#### Option 2: Using Pre-built Binaries (Recommended)
 
 If you have downloaded a release with pre-built binaries:
 
@@ -35,7 +41,7 @@ sudo ./install.sh
 
 This will use the existing binary in the `build` directory and install all necessary files.
 
-#### Option 2: Manual Installation
+#### Option 3: Manual Installation
 
 1. Clone the repository:
    ```bash
