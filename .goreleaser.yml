@@ -1,0 +1,92 @@
+project_name: fail2ban-notify
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: fail2ban-notify
+    main: ./cmd/fail2ban-notify/main.go
+    binary: fail2ban-notify
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    goarm:
+      - 6
+      - 7
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+    flags:
+      - -trimpath
+
+archives:
+  - id: fail2ban-notify
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    files:
+      - LICENSE
+      - README.md
+      - configs/notify.conf
+      - connectors/*
+
+nfpms:
+  - id: packages
+    package_name: fail2ban-notify
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    vendor: eyeskiller
+    homepage: https://github.com/eyeskiller/fail2ban-notify-go
+    maintainer: eyeskiller <your-email@example.com>
+    description: A modern, multi-platform notification system for Fail2Ban
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/local/bin
+    contents:
+      - src: configs/notify.conf
+        dst: /etc/fail2ban/action.d/notify.conf
+      - src: connectors/
+        dst: /etc/fail2ban/connectors/
+        type: dir
+    scripts:
+      postinstall: scripts/postinstall.sh
+
+dockers:
+  - image_templates:
+      - "ghcr.io/eyeskiller/fail2ban-notify:{{ .Version }}"
+      - "ghcr.io/eyeskiller/fail2ban-notify:latest"
+    dockerfile: Dockerfile.goreleaser
+    build_flag_templates:
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+    extra_files:
+      - configs/
+      - connectors/
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch

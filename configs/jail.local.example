@@ -1,0 +1,268 @@
+# Example jail.local configuration with fail2ban-notify
+# Copy this to /etc/fail2ban/jail.local and modify as needed
+
+[DEFAULT]
+# Global settings for all jails
+
+# "bantime" is the number of seconds that a host is banned.
+bantime = 3600
+
+# A host is banned if it has generated "maxretry" during the last "findtime" seconds.
+findtime = 600
+maxretry = 3
+
+# "backend" specifies the backend used to get files modification.
+backend = auto
+
+# Email settings (optional)
+destemail = admin@example.com
+sender = fail2ban@example.com
+mta = sendmail
+
+# Default action with notifications
+# %(action_)s = ban only
+# %(action_mw)s = ban + send email with whois report
+# %(action_mwl)s = ban + send email with whois report + log lines
+action = %(action_)s
+         notify
+
+#
+# SSH jail with notifications
+#
+[sshd]
+enabled = true
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+backend = %(sshd_backend)s
+maxretry = 3
+findtime = 600
+bantime = 3600
+
+# Basic notification
+action = iptables[name=SSH, port=ssh, protocol=tcp]
+         notify
+
+#
+# SSH jail with enhanced notifications
+#
+[sshd-enhanced]
+enabled = false
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+backend = %(sshd_backend)s
+maxretry = 5
+findtime = 300
+bantime = 7200
+
+# Enhanced notification with custom settings
+action = iptables[name=SSH, port=ssh, protocol=tcp]
+         notify-enhanced[debug=true, min_failures=3, notify_start_stop=true]
+
+#
+# Nginx HTTP Authentication
+#
+[nginx-http-auth]
+enabled = true
+port = http,https
+filter = nginx-http-auth
+logpath = /var/log/nginx/error.log
+maxretry = 3
+findtime = 300
+bantime = 1800
+
+action = iptables[name=nginx-http-auth, port=http, protocol=tcp]
+         notify
+
+#
+# Nginx DoS Protection
+#
+[nginx-req-limit]
+enabled = true
+port = http,https
+filter = nginx-req-limit
+logpath = /var/log/nginx/access.log
+maxretry = 10
+findtime = 60
+bantime = 300
+
+# Shorter ban time for rate limiting
+action = iptables[name=nginx-req-limit, port=http, protocol=tcp]
+         notify[timeout=10]
+
+#
+# Apache Authentication
+#
+[apache-auth]
+enabled = false
+port = http,https
+filter = apache-auth
+logpath = /var/log/apache2/error.log
+maxretry = 3
+findtime = 300
+bantime = 1800
+
+action = iptables[name=apache-auth, port=http, protocol=tcp]
+         notify
+
+#
+# FTP (vsftpd)
+#
+[vsftpd]
+enabled = false
+port = ftp,ftp-data,ftps,ftps-data
+filter = vsftpd
+logpath = /var/log/vsftpd.log
+maxretry = 3
+findtime = 300
+bantime = 1800
+
+action = iptables[name=VSFTPD, port=ftp, protocol=tcp]
+         notify
+
+#
+# Mail servers (Postfix/Dovecot)
+#
+[postfix]
+enabled = false
+port = smtp,465,submission
+filter = postfix
+logpath = /var/log/mail.log
+maxretry = 3
+findtime = 300
+bantime = 3600
+
+action = iptables[name=postfix, port=smtp, protocol=tcp]
+         notify
+
+[dovecot]
+enabled = false
+port = pop3,pop3s,imap,imaps,submission,465,sieve
+filter = dovecot
+logpath = /var/log/mail.log
+maxretry = 3
+findtime = 300
+bantime = 3600
+
+action = iptables[name=dovecot, port=imap, protocol=tcp]
+         notify
+
+#
+# WordPress (if using a custom filter)
+#
+[wordpress]
+enabled = false
+port = http,https
+filter = wordpress
+logpath = /var/log/nginx/access.log
+maxretry = 5
+findtime = 300
+bantime = 1800
+
+action = iptables[name=wordpress, port=http, protocol=tcp]
+         notify
+
+#
+# Custom application
+#
+[myapp]
+enabled = false
+port = 8080
+filter = myapp
+logpath = /var/log/myapp/security.log
+maxretry = 5
+findtime = 600
+bantime = 3600
+
+# Custom notification with extra data
+action = iptables[name=myapp, port=8080, protocol=tcp]
+         notify-enhanced[extra_data="app=myapp,env=production"]
+
+#
+# Database protection (MySQL)
+#
+[mysqld-auth]
+enabled = false
+port = 3306
+filter = mysqld-auth
+logpath = /var/log/mysql/error.log
+maxretry = 3
+findtime = 300
+bantime = 7200
+
+action = iptables[name=mysql, port=3306, protocol=tcp]
+         notify
+
+#
+# Docker container protection
+#
+[docker-auth]
+enabled = false
+port = 2376,2377
+filter = docker-auth
+logpath = /var/log/docker.log
+maxretry = 3
+findtime = 300
+bantime = 3600
+
+action = iptables[name=docker, port=2376, protocol=tcp]
+         notify
+
+#
+# Multiple actions example
+#
+[sshd-multi]
+enabled = false
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 3
+findtime = 300
+bantime = 3600
+
+# Multiple notification configurations
+action = iptables[name=SSH, port=ssh, protocol=tcp]
+         notify[timeout=30]
+         notify-enhanced[config_path=/etc/fail2ban/ssh-notify.json, debug=true]
+
+#
+# Whitelist example (ignoreip)
+#
+[sshd-whitelist]
+enabled = false
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+
+# Ignore local networks and trusted IPs
+ignoreip = 127.0.0.1/8
+           ::1
+           192.168.0.0/16
+           10.0.0.0/8
+           172.16.0.0/12
+           203.0.113.0/24
+
+maxretry = 3
+findtime = 300
+bantime = 3600
+
+action = iptables[name=SSH, port=ssh, protocol=tcp]
+         notify[notify_local_ips=false]
+
+#
+# Recidive jail (repeat offenders)
+#
+[recidive]
+enabled = true
+filter = recidive
+logpath = /var/log/fail2ban.log
+banaction = iptables-allports
+protocol = all
+findtime = 86400   # 1 day
+bantime = 604800   # 1 week
+maxretry = 3
+
+# Special notification for repeat offenders
+action = %(banaction)s[name=%(__name__)s]
+         notify-enhanced[extra_data="type=recidive,severity=high"]
