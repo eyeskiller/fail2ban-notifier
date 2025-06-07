@@ -23,6 +23,12 @@
 
 ## 📥 Installation
 
+### One-liner Installation
+
+```bash
+curl -sSL https://raw.githubusercontent.com/eyeskiller/fail2ban-notifier/master/install.sh | sudo bash
+```
+
 ### Manual Installation (Recommended)
 
 1. Clone the repository:
