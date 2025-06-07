@@ -28,6 +28,7 @@ COUNTRY="${F2B_COUNTRY:-}"
 REGION="${F2B_REGION:-}"
 CITY="${F2B_CITY:-}"
 ISP="${F2B_ISP:-}"
+HOSTNAME="${F2B_HOSTNAME:-}"
 FAILURES="${F2B_FAILURES:-0}"
 
 # Determine emoji based on action
@@ -74,6 +75,12 @@ if [[ -n "$ISP" ]]; then
     ISP_ESCAPED=$(escape_markdown "$ISP")
     MESSAGE="$MESSAGE
 🏢 *ISP:* $ISP_ESCAPED"
+fi
+
+if [[ -n "$HOSTNAME" ]]; then
+    HOSTNAME_ESCAPED=$(escape_markdown "$HOSTNAME")
+    MESSAGE="$MESSAGE
+🖥️ *Server:* $HOSTNAME_ESCAPED"
 fi
 
 # Add action buttons

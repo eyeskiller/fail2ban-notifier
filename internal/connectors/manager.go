@@ -425,6 +425,13 @@ func (m *Manager) TestConnector(connectorName string, testData *types.Notificati
 
 	// Use default test data if not provided
 	if testData == nil {
+		// Get local hostname for test data
+		hostname, err := os.Hostname()
+		if err != nil {
+			m.logger.Printf("Failed to get hostname for test: %v", err)
+			hostname = "unknown"
+		}
+
 		testData = &types.NotificationData{
 			IP:       "192.168.1.100",
 			Jail:     "test",
@@ -434,7 +441,7 @@ func (m *Manager) TestConnector(connectorName string, testData *types.Notificati
 			Region:   "Test Region",
 			City:     "Test City",
 			ISP:      "Test ISP",
-			Hostname: "test.example.com",
+			Hostname: hostname,
 			Failures: 5,
 		}
 	}

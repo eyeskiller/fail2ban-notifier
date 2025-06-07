@@ -109,6 +109,15 @@ func handleConnectorStatus(cfg *config.Config, logger *log.Logger) {
 
 // handleTestConnector tests a specific connector
 func handleTestConnector(testConnector string, cfg *config.Config, logger *log.Logger) {
+	// Get local hostname for test data
+	hostname, err := os.Hostname()
+	if err != nil {
+		if cfg.Debug {
+			logger.Printf("Failed to get hostname for test: %v", err)
+		}
+		hostname = "unknown"
+	}
+
 	testData := &types.NotificationData{
 		IP:       "192.168.1.100",
 		Jail:     "test",
@@ -118,7 +127,7 @@ func handleTestConnector(testConnector string, cfg *config.Config, logger *log.L
 		Region:   "Test Region",
 		City:     "Test City",
 		ISP:      "Test ISP",
-		Hostname: "test.example.com",
+		Hostname: hostname,
 		Failures: 5,
 	}
 
@@ -174,6 +183,15 @@ func handleNotification(ip, jail, action string, failures int, cfg *config.Confi
 		geoInfo = &geoip.Info{IP: ip}
 	}
 
+	// Get local hostname
+	hostname, err := os.Hostname()
+	if err != nil {
+		if cfg.Debug {
+			logger.Printf("Failed to get hostname: %v", err)
+		}
+		hostname = "unknown"
+	}
+
 	// Create notification data
 	notificationData := types.NotificationData{
 		IP:     ip,
@@ -204,7 +222,7 @@ func handleNotification(ip, jail, action string, failures int, cfg *config.Confi
 			}
 			return ""
 		}(),
-		Hostname: "", // Could be populated from reverse DNS lookup if needed
+		Hostname: hostname, // Local hostname of the server that was attacked
 		Failures: failures,
 		Timezone: func() string {
 			if geoInfo != nil {

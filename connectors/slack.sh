@@ -26,6 +26,7 @@ COUNTRY="${F2B_COUNTRY:-}"
 REGION="${F2B_REGION:-}"
 CITY="${F2B_CITY:-}"
 ISP="${F2B_ISP:-}"
+HOSTNAME="${F2B_HOSTNAME:-}"
 FAILURES="${F2B_FAILURES:-0}"
 
 # Determine color and emoji based on action
@@ -59,6 +60,10 @@ fi
 
 if [[ -n "$ISP" ]]; then
     FIELDS+=',{"title": "ISP", "value": "'"$ISP"'", "short": true}'
+fi
+
+if [[ -n "$HOSTNAME" ]]; then
+    FIELDS+=',{"title": "Server", "value": "'"$HOSTNAME"'", "short": true}'
 fi
 
 if [[ -n "$COUNTRY" ]]; then
