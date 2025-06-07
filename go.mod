@@ -1,11 +1,6 @@
 module github.com/eyeskiller/fail2ban-notifier
 
-go 1.19
-
-require (
-// No external dependencies required for the core functionality
-// The modular architecture uses external scripts instead of embedding services
-)
+go 1.23
 
 // Development and testing dependencies would go here if needed:
 // github.com/stretchr/testify v1.8.4 // for enhanced testing

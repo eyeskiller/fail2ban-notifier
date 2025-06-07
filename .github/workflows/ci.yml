@@ -8,15 +8,12 @@ on:
     branches: [ main ]
 
 env:
-  GO_VERSION: '1.21'
+  GO_VERSION: '1.23'
 
 jobs:
   test:
     name: Test
     runs-on: self-hosted
-    strategy:
-      matrix:
-        go-version: ['1.19', '1.20', '1.21']
 
     steps:
       - name: Checkout code
@@ -25,15 +22,15 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Cache Go modules
         uses: actions/cache@v3
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go-${{ matrix.go-version }}-
+            ${{ runner.os }}-go-${{ env.GO_VERSION }}-
 
       - name: Download dependencies
         run: go mod download
@@ -53,12 +50,10 @@ jobs:
           go test -race -covermode atomic -coverprofile=covprofile ./...
 
       - name: Generate coverage report
-        if: matrix.go-version == '1.21'
         run: |
           go tool cover -html=covprofile -o coverage.html
 
       - name: Store coverage locally
-        if: matrix.go-version == '1.21'
         run: |
           # Create artifacts directory if it doesn't exist
           mkdir -p $HOME/runner_artifacts/coverage
@@ -107,10 +102,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: latest
-          args: --timeout=5m
+        run: go1.23.10 run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.58.1 run
 
   security:
     name: Security Scan
@@ -127,7 +119,7 @@ jobs:
 
       - name: Install Gosec and dependencies
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.22.3
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
           sudo apt-get update
           sudo apt-get install -y jq
 
@@ -312,7 +304,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Run tests
         run: make test
@@ -334,7 +326,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -410,7 +402,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -465,7 +457,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Update dependencies
         run: |

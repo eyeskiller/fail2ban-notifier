@@ -39,7 +39,7 @@ type Config struct {
 // ConnectorConfig defines a notification connector
 type ConnectorConfig struct {
 	Name        string            `json:"name"`
-	Type        string            `json:"type"`        // "script", "executable", or "http"
+	Type        string            `json:"type"` // "script", "executable", or "http"
 	Enabled     bool              `json:"enabled"`
 	Path        string            `json:"path"`        // Path to script/executable
 	Settings    map[string]string `json:"settings"`    // Environment variables or config
@@ -122,7 +122,7 @@ func SaveConfig(configPath string, config *Config) error {
 }
 
 // validateConnector validates a single connector configuration
-func validateConnector(config *Config, i int, connector ConnectorConfig) error {
+func validateConnector(config *Config, i int, connector *ConnectorConfig) error {
 	if connector.Name == "" {
 		return fmt.Errorf("connector[%d]: name cannot be empty", i)
 	}
@@ -182,7 +182,7 @@ func ValidateConfig(config *Config) error {
 
 	// Validate each connector
 	for i, connector := range config.Connectors {
-		if err := validateConnector(config, i, connector); err != nil {
+		if err := validateConnector(config, i, &connector); err != nil {
 			return err
 		}
 
@@ -228,8 +228,8 @@ func (c *Config) GetConnectorByName(name string) (*ConnectorConfig, bool) {
 }
 
 // AddConnector adds a new connector to the configuration
-func (c *Config) AddConnector(connector ConnectorConfig) {
-	c.Connectors = append(c.Connectors, connector)
+func (c *Config) AddConnector(connector *ConnectorConfig) {
+	c.Connectors = append(c.Connectors, *connector)
 }
 
 // RemoveConnector removes a connector by name
@@ -244,10 +244,10 @@ func (c *Config) RemoveConnector(name string) bool {
 }
 
 // UpdateConnector updates an existing connector
-func (c *Config) UpdateConnector(name string, updatedConnector ConnectorConfig) bool {
+func (c *Config) UpdateConnector(name string, updatedConnector *ConnectorConfig) bool {
 	for i, connector := range c.Connectors {
 		if connector.Name == name {
-			c.Connectors[i] = updatedConnector
+			c.Connectors[i] = *updatedConnector
 			return true
 		}
 	}

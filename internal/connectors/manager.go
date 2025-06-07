@@ -21,12 +21,12 @@ import (
 
 // Script file extensions
 const (
-	ExtShell   = ".sh"
-	ExtBash    = ".bash"
-	ExtPython  = ".py"
-	ExtNode    = ".js"
-	ExtRuby    = ".rb"
-	ExtPerl    = ".pl"
+	ExtShell  = ".sh"
+	ExtBash   = ".bash"
+	ExtPython = ".py"
+	ExtNode   = ".js"
+	ExtRuby   = ".rb"
+	ExtPerl   = ".pl"
 )
 
 // HTTP constants
@@ -55,7 +55,7 @@ func NewManager(cfg *config.Config, logger *log.Logger) *Manager {
 }
 
 // ExecuteAll executes all enabled connectors concurrently
-func (m *Manager) ExecuteAll(data types.NotificationData) error {
+func (m *Manager) ExecuteAll(data *types.NotificationData) error {
 	enabledConnectors := m.config.GetEnabledConnectors()
 
 	if len(enabledConnectors) == 0 {
@@ -75,7 +75,7 @@ func (m *Manager) ExecuteAll(data types.NotificationData) error {
 		go func(conn config.ConnectorConfig) {
 			defer wg.Done()
 
-			if err := m.executeConnector(conn, data); err != nil {
+			if err := m.executeConnector(&conn, data); err != nil {
 				errChan <- fmt.Errorf("connector %s failed: %w", conn.Name, err)
 			} else if m.config.Debug {
 				m.logger.Printf("Connector %s executed successfully", conn.Name)
@@ -102,7 +102,7 @@ func (m *Manager) ExecuteAll(data types.NotificationData) error {
 }
 
 // Execute executes a specific connector by name
-func (m *Manager) Execute(connectorName string, data types.NotificationData) error {
+func (m *Manager) Execute(connectorName string, data *types.NotificationData) error {
 	connector, found := m.config.GetConnectorByName(connectorName)
 	if !found {
 		return fmt.Errorf("connector %s not found", connectorName)
@@ -116,7 +116,7 @@ func (m *Manager) Execute(connectorName string, data types.NotificationData) err
 }
 
 // executeConnector executes a single connector with retry logic
-func (m *Manager) executeConnector(connector *config.ConnectorConfig, data types.NotificationData) error {
+func (m *Manager) executeConnector(connector *config.ConnectorConfig, data *types.NotificationData) error {
 	var lastErr error
 
 	for attempt := 0; attempt <= connector.RetryCount; attempt++ {
@@ -152,7 +152,7 @@ func (m *Manager) executeConnector(connector *config.ConnectorConfig, data types
 }
 
 // getInterpreter returns the appropriate interpreter for a script based on its extension
-func getInterpreter(scriptPath string) (string, []string) {
+func getInterpreter(scriptPath string) (interpreter string, args []string) {
 	ext := filepath.Ext(scriptPath)
 	switch ext {
 	case ExtShell, ExtBash:
@@ -172,7 +172,7 @@ func getInterpreter(scriptPath string) (string, []string) {
 }
 
 // executeScript executes a script or executable connector
-func (m *Manager) executeScript(connector *config.ConnectorConfig, data types.NotificationData) error {
+func (m *Manager) executeScript(connector *config.ConnectorConfig, data *types.NotificationData) error {
 	// Check if file exists and is executable
 	if _, err := os.Stat(connector.Path); os.IsNotExist(err) {
 		return fmt.Errorf("connector script not found: %s", connector.Path)
@@ -267,7 +267,7 @@ func (m *Manager) executeScript(connector *config.ConnectorConfig, data types.No
 }
 
 // executeHTTP executes an HTTP connector
-func (m *Manager) executeHTTP(connector *config.ConnectorConfig, data types.NotificationData) error {
+func (m *Manager) executeHTTP(connector *config.ConnectorConfig, data *types.NotificationData) error {
 	url, ok := connector.Settings["url"]
 	if !ok {
 		return fmt.Errorf("HTTP connector missing 'url' setting")
@@ -362,8 +362,8 @@ func (m *Manager) DiscoverConnectors() ([]config.ConnectorConfig, error) {
 		// Determine connector type
 		connectorType := "executable"
 		if strings.HasSuffix(name, ".sh") || strings.HasSuffix(name, ".bash") ||
-		   strings.HasSuffix(name, ".py") || strings.HasSuffix(name, ".js") ||
-		   strings.HasSuffix(name, ".rb") || strings.HasSuffix(name, ".pl") {
+			strings.HasSuffix(name, ".py") || strings.HasSuffix(name, ".js") ||
+			strings.HasSuffix(name, ".rb") || strings.HasSuffix(name, ".pl") {
 			connectorType = "script"
 		}
 
@@ -418,7 +418,7 @@ func (m *Manager) TestConnector(connectorName string, testData *types.Notificati
 		connector.Enabled = originalEnabled
 	}()
 
-	return m.executeConnector(connector, *testData)
+	return m.executeConnector(connector, testData)
 }
 
 // ValidateConnector validates a connector configuration

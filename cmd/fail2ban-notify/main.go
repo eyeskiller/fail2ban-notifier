@@ -20,7 +20,6 @@ const (
 	ActionUnban = "unban"
 )
 
-// handleInitConfig initializes the configuration file
 func handleInitConfig(configPath string, cfg *config.Config, logger *log.Logger) {
 	sampleConfig := config.CreateSampleConfig()
 
@@ -32,7 +31,7 @@ func handleInitConfig(configPath string, cfg *config.Config, logger *log.Logger)
 	} else {
 		// Merge discovered connectors with sample config
 		for _, conn := range discovered {
-			sampleConfig.AddConnector(conn)
+			sampleConfig.AddConnector(&conn) // ✅ FIXED: pass pointer to AddConnector
 		}
 	}
 
@@ -147,7 +146,7 @@ func handleNotification(ip, jail, action string, failures int, cfg *config.Confi
 	geoManager := geoip.NewManager(cfg.GeoIP, logger)
 
 	// Perform GeoIP lookup
-	var geoInfo *geoip.GeoIPInfo
+	var geoInfo *geoip.Info
 	if cfg.GeoIP.Enabled {
 		geoInfo, lookupErr := geoManager.Lookup(ip)
 		if lookupErr != nil {
@@ -155,12 +154,12 @@ func handleNotification(ip, jail, action string, failures int, cfg *config.Confi
 				logger.Printf("GeoIP lookup failed: %v", lookupErr)
 			}
 			// Continue with empty geo info
-			geoInfo = &geoip.GeoIPInfo{IP: ip}
+			geoInfo = &geoip.Info{IP: ip}
 		} else if cfg.Debug {
 			logger.Printf("GeoIP lookup successful: %s -> %s", ip, geoInfo.Country)
 		}
 	} else {
-		geoInfo = &geoip.GeoIPInfo{IP: ip}
+		geoInfo = &geoip.Info{IP: ip}
 	}
 
 	// Create notification data
@@ -197,7 +196,7 @@ func handleNotification(ip, jail, action string, failures int, cfg *config.Confi
 
 	// Execute all enabled connectors
 	connectorManager := connectors.NewManager(cfg, logger)
-	execErr := connectorManager.ExecuteAll(notificationData)
+	execErr := connectorManager.ExecuteAll(&notificationData)
 	if execErr != nil {
 		logger.Printf("Connector execution completed with errors: %v", execErr)
 		// Don't exit with error code as some connectors may have succeeded
@@ -213,16 +212,16 @@ func handleNotification(ip, jail, action string, failures int, cfg *config.Confi
 
 func main() {
 	var (
-		ip         = flag.String("ip", "", "IP address that was banned/unbanned")
-		jail       = flag.String("jail", "", "Fail2ban jail name")
-		action     = flag.String("action", ActionBan, "Action performed (ban/unban)")
-		failures   = flag.Int("failures", 0, "Number of failures")
-		configPath = flag.String("config", "/etc/fail2ban/fail2ban-notify.json", "Path to configuration file")
-		initConfig = flag.Bool("init", false, "Initialize configuration file")
-		discover   = flag.Bool("discover", false, "Discover available connectors")
-		test       = flag.String("test", "", "Test specific connector")
-		status     = flag.Bool("status", false, "Show connector status")
-		debug      = flag.Bool("debug", false, "Enable debug logging")
+		ip          = flag.String("ip", "", "IP address that was banned/unbanned")
+		jail        = flag.String("jail", "", "Fail2ban jail name")
+		action      = flag.String("action", ActionBan, "Action performed (ban/unban)")
+		failures    = flag.Int("failures", 0, "Number of failures")
+		configPath  = flag.String("config", "/etc/fail2ban/fail2ban-notify.json", "Path to configuration file")
+		initConfig  = flag.Bool("init", false, "Initialize configuration file")
+		discover    = flag.Bool("discover", false, "Discover available connectors")
+		test        = flag.String("test", "", "Test specific connector")
+		status      = flag.Bool("status", false, "Show connector status")
+		debug       = flag.Bool("debug", false, "Enable debug logging")
 		versionFlag = flag.Bool("version", false, "Show version information")
 	)
 	flag.Parse()

@@ -93,7 +93,7 @@ func TestConfigSaveLoad(t *testing.T) {
 	// Create test config
 	originalConfig := config.DefaultConfig()
 	originalConfig.Debug = true
-	originalConfig.AddConnector(config.ConnectorConfig{
+	originalConfig.AddConnector(&config.ConnectorConfig{
 		Name:    "test",
 		Type:    "script",
 		Enabled: true,
@@ -148,7 +148,7 @@ func TestConnectorManagement(t *testing.T) {
 	cfg := config.DefaultConfig()
 
 	// Test AddConnector
-	testConnector := config.ConnectorConfig{
+	testConnector := &config.ConnectorConfig{
 		Name:    "test",
 		Type:    "script",
 		Enabled: true,
@@ -174,10 +174,10 @@ func TestConnectorManagement(t *testing.T) {
 	}
 
 	// Test UpdateConnector
-	updatedConnector := testConnector
+	updatedConnector := *testConnector
 	updatedConnector.Enabled = false
 
-	updated := cfg.UpdateConnector("test", updatedConnector)
+	updated := cfg.UpdateConnector("test", &updatedConnector)
 	if !updated {
 		t.Error("UpdateConnector should return true")
 	}

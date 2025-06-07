@@ -7,28 +7,28 @@ import (
 
 // NotificationData contains information about the fail2ban event
 type NotificationData struct {
-	IP         string    `json:"ip"`
-	Jail       string    `json:"jail"`
-	Action     string    `json:"action"` // "ban" or "unban"
-	Time       time.Time `json:"time"`
-	Country    string    `json:"country,omitempty"`
-	Region     string    `json:"region,omitempty"`
-	City       string    `json:"city,omitempty"`
-	ISP        string    `json:"isp,omitempty"`
-	Hostname   string    `json:"hostname,omitempty"`
-	Failures   int       `json:"failures,omitempty"`
-	Timezone   string    `json:"timezone,omitempty"`
-	Latitude   float64   `json:"latitude,omitempty"`
-	Longitude  float64   `json:"longitude,omitempty"`
+	IP        string    `json:"ip"`
+	Jail      string    `json:"jail"`
+	Action    string    `json:"action"` // "ban" or "unban"
+	Time      time.Time `json:"time"`
+	Country   string    `json:"country,omitempty"`
+	Region    string    `json:"region,omitempty"`
+	City      string    `json:"city,omitempty"`
+	ISP       string    `json:"isp,omitempty"`
+	Hostname  string    `json:"hostname,omitempty"`
+	Failures  int       `json:"failures,omitempty"`
+	Timezone  string    `json:"timezone,omitempty"`
+	Latitude  float64   `json:"latitude,omitempty"`
+	Longitude float64   `json:"longitude,omitempty"`
 }
 
 // String returns a string representation of the notification data
-func (nd NotificationData) String() string {
+func (nd *NotificationData) String() string {
 	return nd.IP + " " + nd.Action + "ned in " + nd.Jail
 }
 
 // GetLocationString returns a formatted location string
-func (nd NotificationData) GetLocationString() string {
+func (nd *NotificationData) GetLocationString() string {
 	if nd.Country == "" {
 		return ""
 	}
@@ -45,22 +45,22 @@ func (nd NotificationData) GetLocationString() string {
 }
 
 // IsValid checks if the notification data has required fields
-func (nd NotificationData) IsValid() bool {
+func (nd *NotificationData) IsValid() bool {
 	return nd.IP != "" && nd.Jail != "" && nd.Action != ""
 }
 
 // IsBan returns true if this is a ban action
-func (nd NotificationData) IsBan() bool {
+func (nd *NotificationData) IsBan() bool {
 	return nd.Action == "ban"
 }
 
 // IsUnban returns true if this is an unban action
-func (nd NotificationData) IsUnban() bool {
+func (nd *NotificationData) IsUnban() bool {
 	return nd.Action == "unban"
 }
 
 // ToJSON returns the notification data as JSON
-func (nd NotificationData) ToJSON() ([]byte, error) {
+func (nd *NotificationData) ToJSON() ([]byte, error) {
 	return json.Marshal(nd)
 }
 
@@ -83,22 +83,22 @@ type ExecutionResult struct {
 
 // BatchResult represents the result of executing multiple connectors
 type BatchResult struct {
-	TotalConnectors    int               `json:"total_connectors"`
-	SuccessfulCount    int               `json:"successful_count"`
-	FailedCount        int               `json:"failed_count"`
-	TotalDuration      time.Duration     `json:"total_duration"`
-	Results            []ExecutionResult `json:"results"`
-	NotificationData   NotificationData  `json:"notification_data"`
-	Timestamp          time.Time         `json:"timestamp"`
+	TotalConnectors  int               `json:"total_connectors"`
+	SuccessfulCount  int               `json:"successful_count"`
+	FailedCount      int               `json:"failed_count"`
+	TotalDuration    time.Duration     `json:"total_duration"`
+	Results          []ExecutionResult `json:"results"`
+	NotificationData NotificationData  `json:"notification_data"`
+	Timestamp        time.Time         `json:"timestamp"`
 }
 
 // IsSuccess returns true if all connectors executed successfully
-func (br BatchResult) IsSuccess() bool {
+func (br *BatchResult) IsSuccess() bool {
 	return br.FailedCount == 0
 }
 
 // GetSuccessRate returns the success rate as a percentage
-func (br BatchResult) GetSuccessRate() float64 {
+func (br *BatchResult) GetSuccessRate() float64 {
 	if br.TotalConnectors == 0 {
 		return 0
 	}
@@ -106,7 +106,7 @@ func (br BatchResult) GetSuccessRate() float64 {
 }
 
 // GetFailedConnectors returns a list of failed connector names
-func (br BatchResult) GetFailedConnectors() []string {
+func (br *BatchResult) GetFailedConnectors() []string {
 	var failed []string
 	for _, result := range br.Results {
 		if !result.Success {
@@ -126,45 +126,45 @@ type LogEntry struct {
 
 // HealthStatus represents the health status of the system
 type HealthStatus struct {
-	Status      string            `json:"status"` // "healthy", "degraded", "unhealthy"
-	Version     string            `json:"version"`
-	Uptime      time.Duration     `json:"uptime"`
-	Connectors  int               `json:"connectors"`
-	LastExecution *time.Time      `json:"last_execution,omitempty"`
-	Errors      []string          `json:"errors,omitempty"`
-	Checks      map[string]string `json:"checks"`
+	Status        string            `json:"status"` // "healthy", "degraded", "unhealthy"
+	Version       string            `json:"version"`
+	Uptime        time.Duration     `json:"uptime"`
+	Connectors    int               `json:"connectors"`
+	LastExecution *time.Time        `json:"last_execution,omitempty"`
+	Errors        []string          `json:"errors,omitempty"`
+	Checks        map[string]string `json:"checks"`
 }
 
 // IsHealthy returns true if the system is healthy
-func (hs HealthStatus) IsHealthy() bool {
+func (hs *HealthStatus) IsHealthy() bool {
 	return hs.Status == "healthy"
 }
 
 // Metrics represents system metrics
 type Metrics struct {
-	TotalNotifications     int64                    `json:"total_notifications"`
-	SuccessfulNotifications int64                   `json:"successful_notifications"`
-	FailedNotifications    int64                    `json:"failed_notifications"`
-	ConnectorMetrics       map[string]ConnectorMetrics `json:"connector_metrics"`
-	GeoIPCacheHits         int64                    `json:"geoip_cache_hits"`
-	GeoIPCacheMisses       int64                    `json:"geoip_cache_misses"`
-	AverageExecutionTime   time.Duration            `json:"average_execution_time"`
-	LastReset              time.Time                `json:"last_reset"`
+	TotalNotifications      int64                       `json:"total_notifications"`
+	SuccessfulNotifications int64                       `json:"successful_notifications"`
+	FailedNotifications     int64                       `json:"failed_notifications"`
+	ConnectorMetrics        map[string]ConnectorMetrics `json:"connector_metrics"`
+	GeoIPCacheHits          int64                       `json:"geoip_cache_hits"`
+	GeoIPCacheMisses        int64                       `json:"geoip_cache_misses"`
+	AverageExecutionTime    time.Duration               `json:"average_execution_time"`
+	LastReset               time.Time                   `json:"last_reset"`
 }
 
 // ConnectorMetrics represents metrics for a specific connector
 type ConnectorMetrics struct {
-	Executions       int64         `json:"executions"`
-	Successes        int64         `json:"successes"`
-	Failures         int64         `json:"failures"`
-	AverageTime      time.Duration `json:"average_time"`
-	LastExecution    *time.Time    `json:"last_execution,omitempty"`
-	LastError        string        `json:"last_error,omitempty"`
-	ConsecutiveFailures int        `json:"consecutive_failures"`
+	Executions          int64         `json:"executions"`
+	Successes           int64         `json:"successes"`
+	Failures            int64         `json:"failures"`
+	AverageTime         time.Duration `json:"average_time"`
+	LastExecution       *time.Time    `json:"last_execution,omitempty"`
+	LastError           string        `json:"last_error,omitempty"`
+	ConsecutiveFailures int           `json:"consecutive_failures"`
 }
 
 // GetSuccessRate returns the success rate for a connector
-func (cm ConnectorMetrics) GetSuccessRate() float64 {
+func (cm *ConnectorMetrics) GetSuccessRate() float64 {
 	if cm.Executions == 0 {
 		return 0
 	}
@@ -173,13 +173,13 @@ func (cm ConnectorMetrics) GetSuccessRate() float64 {
 
 // Configuration types for external access
 type ConfigSummary struct {
-	Version         string                    `json:"version"`
-	ConnectorPath   string                    `json:"connector_path"`
-	EnabledConnectors []string                `json:"enabled_connectors"`
-	GeoIPEnabled    bool                      `json:"geoip_enabled"`
-	GeoIPService    string                    `json:"geoip_service"`
-	Debug           bool                      `json:"debug"`
-	TotalConnectors int                       `json:"total_connectors"`
+	Version           string   `json:"version"`
+	ConnectorPath     string   `json:"connector_path"`
+	EnabledConnectors []string `json:"enabled_connectors"`
+	GeoIPEnabled      bool     `json:"geoip_enabled"`
+	GeoIPService      string   `json:"geoip_service"`
+	Debug             bool     `json:"debug"`
+	TotalConnectors   int      `json:"total_connectors"`
 }
 
 // Event types for monitoring and webhooks
@@ -231,7 +231,7 @@ type TemplateVars struct {
 }
 
 // NewTemplateVars creates template variables from notification data
-func NewTemplateVars(data NotificationData) TemplateVars {
+func NewTemplateVars(data *NotificationData) TemplateVars {
 	emoji := "🚫"
 	color := "danger"
 	if data.IsUnban() {

@@ -1,10 +1,10 @@
+version: 1
+
 run:
   timeout: 5m
   tests: true
 
 linters-settings:
-  govet:
-    check-shadowing: true
   golint:
     min-confidence: 0.8
   gocyclo:
@@ -46,7 +46,6 @@ linters-settings:
 linters:
   enable:
     - bodyclose
-    - deadcode
     - depguard
     - dogsled
     - dupl
@@ -59,31 +58,26 @@ linters:
     - gocyclo
     - gofmt
     - goimports
-    - golint
-    - gomnd
     - goprintffuncname
     - gosec
     - gosimple
     - govet
     - ineffassign
-    - interfacer
     - lll
-    - maligned
     - misspell
     - nakedret
     - noctx
     - nolintlint
+    - revive        # replaces golint
     - rowserrcheck
-    - scopelint
     - staticcheck
-    - structcheck
     - stylecheck
     - typecheck
     - unconvert
     - unparam
-    - unused
-    - varcheck
+    - unused        # replaces varcheck, structcheck, deadcode
     - whitespace
+    - mnd           # replaces gomnd
 
 issues:
   exclude-rules:

@@ -14,21 +14,21 @@ import (
 	"github.com/eyeskiller/fail2ban-notifier/internal/config"
 )
 
-// GeoIPInfo represents geolocation information for an IP address
-type GeoIPInfo struct {
-	IP       string `json:"ip"`
-	Country  string `json:"country"`
-	Region   string `json:"region"`
-	City     string `json:"city"`
-	ISP      string `json:"isp"`
-	Timezone string `json:"timezone"`
+// Info represents geolocation information for an IP address
+type Info struct {
+	IP       string  `json:"ip"`
+	Country  string  `json:"country"`
+	Region   string  `json:"region"`
+	City     string  `json:"city"`
+	ISP      string  `json:"isp"`
+	Timezone string  `json:"timezone"`
 	Lat      float64 `json:"lat"`
 	Lon      float64 `json:"lon"`
 }
 
 // Service represents a GeoIP service provider
 type Service interface {
-	Lookup(ip string) (*GeoIPInfo, error)
+	Lookup(ip string) (*Info, error)
 	GetName() string
 }
 
@@ -42,7 +42,7 @@ type Manager struct {
 }
 
 type cacheEntry struct {
-	info      *GeoIPInfo
+	info      *Info
 	timestamp time.Time
 }
 
@@ -72,9 +72,9 @@ func NewManager(cfg config.GeoIPConfig, logger *log.Logger) *Manager {
 }
 
 // Lookup performs a GeoIP lookup for the given IP address
-func (m *Manager) Lookup(ip string) (*GeoIPInfo, error) {
+func (m *Manager) Lookup(ip string) (*Info, error) {
 	if !m.config.Enabled {
-		return &GeoIPInfo{IP: ip}, nil
+		return &Info{IP: ip}, nil
 	}
 
 	// Validate IP address
@@ -84,7 +84,7 @@ func (m *Manager) Lookup(ip string) (*GeoIPInfo, error) {
 
 	// Skip private/local IP addresses
 	if isPrivateIP(ip) {
-		return &GeoIPInfo{
+		return &Info{
 			IP:      ip,
 			Country: "Private Network",
 			Region:  "Local",
@@ -110,7 +110,7 @@ func (m *Manager) Lookup(ip string) (*GeoIPInfo, error) {
 	info, err := service.Lookup(ip)
 	if err != nil {
 		m.logger.Printf("GeoIP lookup failed for %s: %v", ip, err)
-		return &GeoIPInfo{IP: ip}, nil // Return empty info instead of error
+		return &Info{IP: ip}, nil // Return empty info instead of error
 	}
 
 	// Cache the result
@@ -122,7 +122,7 @@ func (m *Manager) Lookup(ip string) (*GeoIPInfo, error) {
 }
 
 // getCached retrieves cached GeoIP information
-func (m *Manager) getCached(ip string) *GeoIPInfo {
+func (m *Manager) getCached(ip string) *Info {
 	m.cacheMu.RLock()
 	defer m.cacheMu.RUnlock()
 
@@ -140,7 +140,7 @@ func (m *Manager) getCached(ip string) *GeoIPInfo {
 }
 
 // setCached stores GeoIP information in cache
-func (m *Manager) setCached(ip string, info *GeoIPInfo) {
+func (m *Manager) setCached(ip string, info *Info) {
 	m.cacheMu.Lock()
 	defer m.cacheMu.Unlock()
 
@@ -223,7 +223,7 @@ func (s *IPAPIService) GetName() string {
 	return "ip-api.com"
 }
 
-func (s *IPAPIService) Lookup(ip string) (*GeoIPInfo, error) {
+func (s *IPAPIService) Lookup(ip string) (*Info, error) {
 	url := fmt.Sprintf("http://ip-api.com/json/%s?fields=status,country,regionName,city,isp,timezone,lat,lon", ip)
 
 	resp, err := s.client.Get(url)
@@ -260,7 +260,7 @@ func (s *IPAPIService) Lookup(ip string) (*GeoIPInfo, error) {
 		return nil, fmt.Errorf("API returned status: %s", result.Status)
 	}
 
-	return &GeoIPInfo{
+	return &Info{
 		IP:       ip,
 		Country:  result.Country,
 		Region:   result.RegionName,
@@ -282,7 +282,7 @@ func (s *IPGeolocationService) GetName() string {
 	return "ipgeolocation.io"
 }
 
-func (s *IPGeolocationService) Lookup(ip string) (*GeoIPInfo, error) {
+func (s *IPGeolocationService) Lookup(ip string) (*Info, error) {
 	url := fmt.Sprintf("https://api.ipgeolocation.io/ipgeo?apiKey=%s&ip=%s", s.apiKey, ip)
 
 	resp, err := s.client.Get(url)
@@ -301,15 +301,15 @@ func (s *IPGeolocationService) Lookup(ip string) (*GeoIPInfo, error) {
 	}
 
 	var result struct {
-		IP           string  `json:"ip"`
-		CountryName  string  `json:"country_name"`
-		StateProv    string  `json:"state_prov"`
-		City         string  `json:"city"`
-		ISP          string  `json:"isp"`
-		TimeZone     string  `json:"time_zone"`
-		Latitude     float64 `json:"latitude"`
-		Longitude    float64 `json:"longitude"`
-		Message      string  `json:"message"` // Error message if any
+		IP          string  `json:"ip"`
+		CountryName string  `json:"country_name"`
+		StateProv   string  `json:"state_prov"`
+		City        string  `json:"city"`
+		ISP         string  `json:"isp"`
+		TimeZone    string  `json:"time_zone"`
+		Latitude    float64 `json:"latitude"`
+		Longitude   float64 `json:"longitude"`
+		Message     string  `json:"message"` // Error message if any
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -321,7 +321,7 @@ func (s *IPGeolocationService) Lookup(ip string) (*GeoIPInfo, error) {
 		return nil, fmt.Errorf("API error: %s", result.Message)
 	}
 
-	return &GeoIPInfo{
+	return &Info{
 		IP:       ip,
 		Country:  result.CountryName,
 		Region:   result.StateProv,
@@ -334,8 +334,8 @@ func (s *IPGeolocationService) Lookup(ip string) (*GeoIPInfo, error) {
 }
 
 // BatchLookup performs multiple GeoIP lookups concurrently
-func (m *Manager) BatchLookup(ips []string) map[string]*GeoIPInfo {
-	results := make(map[string]*GeoIPInfo)
+func (m *Manager) BatchLookup(ips []string) map[string]*Info {
+	results := make(map[string]*Info)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
@@ -346,14 +346,14 @@ func (m *Manager) BatchLookup(ips []string) map[string]*GeoIPInfo {
 		wg.Add(1)
 		go func(ip string) {
 			defer wg.Done()
-			semaphore <- struct{}{} // Acquire
+			semaphore <- struct{}{}        // Acquire
 			defer func() { <-semaphore }() // Release
 
 			info, err := m.Lookup(ip)
 			mu.Lock()
 			if err != nil {
 				// Store empty info for failed lookups
-				results[ip] = &GeoIPInfo{IP: ip}
+				results[ip] = &Info{IP: ip}
 			} else {
 				results[ip] = info
 			}

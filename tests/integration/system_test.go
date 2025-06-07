@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 package integration
@@ -305,8 +306,8 @@ func TestGeoIPServices(t *testing.T) {
 
 	// Test public IP lookup
 	testIPs := []string{
-		"8.8.8.8",   // Google DNS
-		"1.1.1.1",   // Cloudflare DNS
+		"8.8.8.8", // Google DNS
+		"1.1.1.1", // Cloudflare DNS
 	}
 
 	for _, ip := range testIPs {
