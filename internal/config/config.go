@@ -353,6 +353,23 @@ func createEmailConnector() ConnectorConfig {
 	}
 }
 
+// createPagerDutyConnector creates a sample PagerDuty connector
+func createPagerDutyConnector() ConnectorConfig {
+	return ConnectorConfig{
+		Name:    "pagerduty",
+		Type:    ConnectorTypeScript,
+		Enabled: false,
+		Path:    "/etc/fail2ban/connectors/pagerduty.sh",
+		Settings: map[string]string{
+			"PAGERDUTY_ROUTING_KEY": "YOUR_PAGERDUTY_ROUTING_KEY",
+		},
+		Timeout:     30,
+		RetryCount:  2,
+		RetryDelay:  5,
+		Description: "Send incidents to PagerDuty via Events API v2",
+	}
+}
+
 // createWebhookConnector creates a sample webhook connector
 func createWebhookConnector() ConnectorConfig {
 	return ConnectorConfig{
@@ -383,6 +400,7 @@ func CreateSampleConfig() *Config {
 		createSlackConnector(),
 		createTelegramConnector(),
 		createEmailConnector(),
+		createPagerDutyConnector(),
 		createWebhookConnector(),
 	}
 

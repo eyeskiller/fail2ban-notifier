@@ -293,11 +293,11 @@ func TestCreateSampleConfig(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("expected non-nil config")
 	}
-	if len(cfg.Connectors) != 6 {
-		t.Fatalf("expected 6 sample connectors, got %d", len(cfg.Connectors))
+	if len(cfg.Connectors) != 7 {
+		t.Fatalf("expected 7 sample connectors, got %d", len(cfg.Connectors))
 	}
 
-	expectedNames := []string{"discord", "teams", "slack", "telegram", "email", "webhook"}
+	expectedNames := []string{"discord", "teams", "slack", "telegram", "email", "pagerduty", "webhook"}
 	for i, name := range expectedNames {
 		if cfg.Connectors[i].Name != name {
 			t.Errorf("connector[%d].Name = %q, want %q", i, cfg.Connectors[i].Name, name)

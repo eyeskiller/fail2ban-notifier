@@ -15,7 +15,7 @@
 
 ## ✨ Features
 
-- **🔔 Multiple Notification Services**: Support for Discord, Slack, Microsoft Teams, Telegram, Email, and custom webhooks
+- **🔔 Multiple Notification Services**: Support for Discord, Slack, Microsoft Teams, Telegram, Email, PagerDuty, and custom webhooks
 - **🌎 GeoIP Integration**: Automatically lookup and include geographic information about banned IPs
 - **⚙️ Flexible Configuration**: Easy to configure and extend with new notification services
 - **🔒 Fail2Ban Integration**: Seamlessly integrates with Fail2Ban's action system
@@ -184,6 +184,7 @@ Creates a default configuration file with sample connectors.
 - **Microsoft Teams**: Send notifications to Teams channels via webhooks
 - **Telegram**: Send notifications to Telegram chats via bot API
 - **Email**: Send email notifications via SMTP
+- **PagerDuty**: Send incidents to PagerDuty via Events API v2 (ban creates a triggered incident, unban resolves it)
 - **Custom Webhook**: Send notifications to any HTTP endpoint
 
 ## 🧩 Creating Custom Connectors

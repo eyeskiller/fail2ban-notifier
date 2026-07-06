@@ -65,6 +65,10 @@ nfpms:
         dst: /etc/fail2ban/connectors/email.py
         file_info:
           mode: 0755
+      - src: connectors/pagerduty.sh
+        dst: /etc/fail2ban/connectors/pagerduty.sh
+        file_info:
+          mode: 0755
 
 changelog:
   sort: asc
