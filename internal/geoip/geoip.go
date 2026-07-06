@@ -224,7 +224,7 @@ func (s *IPAPIService) GetName() string {
 	return "ip-api.com"
 }
 
-func (s *IPAPIService) Lookup(ip string) (*Info, error) {
+func (s *IPAPIService) Lookup(ip string) (info *Info, err error) {
 	url := fmt.Sprintf("https://ip-api.com/json/%s?fields=status,country,regionName,city,isp,timezone,lat,lon", ip)
 
 	// Create a new request with context
@@ -296,7 +296,7 @@ func (s *IPGeolocationService) GetName() string {
 	return "ipgeolocation.io"
 }
 
-func (s *IPGeolocationService) Lookup(ip string) (*Info, error) {
+func (s *IPGeolocationService) Lookup(ip string) (info *Info, err error) {
 	url := fmt.Sprintf("https://api.ipgeolocation.io/ipgeo?apiKey=%s&ip=%s", s.apiKey, ip)
 
 	// Create a new request with context

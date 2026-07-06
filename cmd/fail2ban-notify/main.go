@@ -146,10 +146,6 @@ func handleTestConnector(testConnector string, cfg *config.Config, logger *log.L
 func handleNotification(ip, jail, action string, failures int, cfg *config.Config, logger *log.Logger) {
 	// Validate required parameters
 	if ip == "" || jail == "" {
-		_, err := fmt.Fprintf(os.Stderr, "Error: ip and jail parameters are required\n\n")
-		if err != nil {
-			return
-		}
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -195,54 +191,22 @@ func handleNotification(ip, jail, action string, failures int, cfg *config.Confi
 
 	// Create notification data
 	notificationData := types.NotificationData{
-		IP:     ip,
-		Jail:   jail,
-		Action: action,
-		Time:   time.Now(),
-		Country: func() string {
-			if geoInfo != nil {
-				return geoInfo.Country
-			}
-			return ""
-		}(),
-		Region: func() string {
-			if geoInfo != nil {
-				return geoInfo.Region
-			}
-			return ""
-		}(),
-		City: func() string {
-			if geoInfo != nil {
-				return geoInfo.City
-			}
-			return ""
-		}(),
-		ISP: func() string {
-			if geoInfo != nil {
-				return geoInfo.ISP
-			}
-			return ""
-		}(),
-		Hostname: hostname, // Local hostname of the server that was attacked
+		IP:       ip,
+		Jail:     jail,
+		Action:   action,
+		Time:     time.Now(),
+		Hostname: hostname,
 		Failures: failures,
-		Timezone: func() string {
-			if geoInfo != nil {
-				return geoInfo.Timezone
-			}
-			return ""
-		}(),
-		Latitude: func() float64 {
-			if geoInfo != nil {
-				return geoInfo.Lat
-			}
-			return 0.0
-		}(),
-		Longitude: func() float64 {
-			if geoInfo != nil {
-				return geoInfo.Lon
-			}
-			return 0.0
-		}(),
+	}
+
+	if geoInfo != nil {
+		notificationData.Country = geoInfo.Country
+		notificationData.Region = geoInfo.Region
+		notificationData.City = geoInfo.City
+		notificationData.ISP = geoInfo.ISP
+		notificationData.Timezone = geoInfo.Timezone
+		notificationData.Latitude = geoInfo.Lat
+		notificationData.Longitude = geoInfo.Lon
 	}
 
 	if cfg.Debug {

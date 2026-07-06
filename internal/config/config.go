@@ -84,7 +84,7 @@ func LoadConfig(configPath string) (*Config, error) {
 		return config, SaveConfig(configPath, config)
 	}
 
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) // #nosec G304
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
@@ -122,7 +122,7 @@ func SaveConfig(configPath string, config *Config) error {
 }
 
 // validateConnector validates a single connector configuration
-func validateConnector(_ *Config, i int, connector *ConnectorConfig) error {
+func validateConnector(i int, connector *ConnectorConfig) error {
 	if connector.Name == "" {
 		return fmt.Errorf("connector[%d]: name cannot be empty", i)
 	}
@@ -183,7 +183,7 @@ func ValidateConfig(config *Config) error {
 	// Validate each connector
 	for i, connector := range config.Connectors {
 		connectorCopy := connector // Create a local copy to avoid memory aliasing
-		if err := validateConnector(config, i, &connectorCopy); err != nil {
+		if err := validateConnector(i, &connectorCopy); err != nil {
 			return err
 		}
 
@@ -318,7 +318,7 @@ func createTelegramConnector() ConnectorConfig {
 		Type:    ConnectorTypeScript,
 		Enabled: false,
 		Path:    "/etc/fail2ban/connectors/telegram.sh",
-		Settings: map[string]string{
+		Settings: map[string]string{ // #nosec G101
 			"TELEGRAM_BOT_TOKEN": "YOUR_BOT_TOKEN",
 			"TELEGRAM_CHAT_ID":   "YOUR_CHAT_ID",
 		},

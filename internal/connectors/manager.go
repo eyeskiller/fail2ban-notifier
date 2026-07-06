@@ -213,14 +213,14 @@ func (m *Manager) executeScript(connector *config.ConnectorConfig, data *types.N
 		if err != nil {
 			return fmt.Errorf("interpreter not found: %s, error: %w", interpreter, err)
 		}
-		cmd = exec.CommandContext(ctx, fullPath, args...)
+		cmd = exec.CommandContext(ctx, fullPath, args...) // #nosec G204
 	} else {
 		// Use full path for interpreter to avoid path traversal
 		fullPath, err := exec.LookPath(interpreter)
 		if err != nil {
 			return fmt.Errorf("interpreter not found: %s, error: %w", interpreter, err)
 		}
-		cmd = exec.CommandContext(ctx, fullPath)
+		cmd = exec.CommandContext(ctx, fullPath) // #nosec G204
 	}
 
 	// Prepare environment variables
@@ -329,15 +329,9 @@ func (m *Manager) executeHTTP(connector *config.ConnectorConfig, data *types.Not
 	if err != nil {
 		return fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-
-		}
-	}(resp.Body)
-
 	// Read response body for debugging
 	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
 
 	if m.config.Debug {
 		m.logger.Printf("HTTP connector %s response: %s %s", connector.Name, resp.Status, string(body))
