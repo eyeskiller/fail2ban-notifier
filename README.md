@@ -3,7 +3,7 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/eyeskiller/fail2ban-notifier/master/assets/logo.png" alt="fail2ban-notifier logo" width="200" height="200" onerror="this.style.display='none'">
 
-  <h3>A powerful notification system for Fail2Ban</h3>
+  <h3>A powerful notification system for <a href="https://github.com/fail2ban/fail2ban">Fail2Ban</a></h3>
   <p>Send alerts to various services when IPs are banned or unbanned</p>
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
