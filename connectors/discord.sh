@@ -15,6 +15,12 @@ if [[ -z "$WEBHOOK_URL" ]]; then
     exit 1
 fi
 
+# Check for jq (required for safe JSON construction)
+if ! command -v jq &>/dev/null; then
+    echo "Error: jq is required but not installed. Install it with: apt-get install jq" >&2
+    exit 1
+fi
+
 # Read JSON data from stdin (optional - we also have env vars)
 JSON_DATA=""
 if [[ -p /dev/stdin ]]; then
@@ -30,16 +36,18 @@ COUNTRY="${F2B_COUNTRY:-}"
 REGION="${F2B_REGION:-}"
 CITY="${F2B_CITY:-}"
 ISP="${F2B_ISP:-}"
-HOSTNAME="${F2B_HOSTNAME:-}"
+HOSTNAME_VAR="${F2B_HOSTNAME:-}"
 FAILURES="${F2B_FAILURES:-0}"
 
 # Determine color based on action
 if [[ "$ACTION" == "unban" ]]; then
-    COLOR="4505434"  # Green
+    COLOR=4505434   # Green
     EMOJI="✅"
+    ACTION_DISPLAY="Unban"
 else
-    COLOR="16711684"  # Red
+    COLOR=16711684  # Red
     EMOJI="🚫"
+    ACTION_DISPLAY="Ban"
 fi
 
 # Build location string
@@ -51,48 +59,58 @@ if [[ -n "$COUNTRY" ]]; then
     fi
 fi
 
-# Create the embed fields
-FIELDS='[
-    {"name": "IP Address", "value": "'"$IP"'", "inline": true},
-    {"name": "Jail", "value": "'"$JAIL"'", "inline": true},
-    {"name": "Action", "value": "'"${ACTION^}"'", "inline": true}'
+# Build fields array safely using jq
+FIELDS=$(jq -n \
+    --arg ip "$IP" \
+    --arg jail "$JAIL" \
+    --arg action "$ACTION_DISPLAY" \
+    '[
+        {"name": "IP Address", "value": $ip, "inline": true},
+        {"name": "Jail", "value": $jail, "inline": true},
+        {"name": "Action", "value": $action, "inline": true}
+    ]')
 
 if [[ "$FAILURES" -gt 0 ]]; then
-    FIELDS+=',{"name": "Failures", "value": "'"$FAILURES"'", "inline": true}'
+    FIELDS=$(echo "$FIELDS" | jq --arg val "$FAILURES" '. + [{"name": "Failures", "value": $val, "inline": true}]')
 fi
 
 if [[ -n "$ISP" ]]; then
-    FIELDS+=',{"name": "ISP", "value": "'"$ISP"'", "inline": true}'
+    FIELDS=$(echo "$FIELDS" | jq --arg val "$ISP" '. + [{"name": "ISP", "value": $val, "inline": true}]')
 fi
 
-if [[ -n "$HOSTNAME" ]]; then
-    FIELDS+=',{"name": "Server", "value": "'"$HOSTNAME"'", "inline": true}'
+if [[ -n "$HOSTNAME_VAR" ]]; then
+    FIELDS=$(echo "$FIELDS" | jq --arg val "$HOSTNAME_VAR" '. + [{"name": "Server", "value": $val, "inline": true}]')
 fi
 
 if [[ -n "$COUNTRY" ]]; then
-    FIELDS+=',{"name": "Location", "value": "'"${CITY:+$CITY, }$COUNTRY"'", "inline": true}'
+    LOC_VAL="${CITY:+$CITY, }$COUNTRY"
+    FIELDS=$(echo "$FIELDS" | jq --arg val "$LOC_VAL" '. + [{"name": "Location", "value": $val, "inline": true}]')
 fi
 
-FIELDS+=']'
-
-# Create the payload
-PAYLOAD=$(cat <<EOF
-{
-    "username": "$USERNAME",
-    "avatar_url": "$AVATAR_URL",
-    "embeds": [{
-        "title": "$EMOJI Fail2Ban ${ACTION^}: $JAIL",
-        "description": "IP **$IP**$LOCATION has been ${ACTION}ned",
-        "color": $COLOR,
-        "timestamp": "$TIME",
-        "fields": $FIELDS,
-        "footer": {
-            "text": "Fail2Ban Security Alert"
-        }
-    }]
-}
-EOF
-)
+# Create the payload safely using jq
+DESCRIPTION="IP **${IP}**${LOCATION} has been ${ACTION}ned"
+PAYLOAD=$(jq -n \
+    --arg username "$USERNAME" \
+    --arg avatar_url "$AVATAR_URL" \
+    --arg title "$EMOJI Fail2Ban ${ACTION_DISPLAY}: $JAIL" \
+    --arg description "$DESCRIPTION" \
+    --argjson color "$COLOR" \
+    --arg timestamp "$TIME" \
+    --argjson fields "$FIELDS" \
+    '{
+        "username": $username,
+        "avatar_url": $avatar_url,
+        "embeds": [{
+            "title": $title,
+            "description": $description,
+            "color": $color,
+            "timestamp": $timestamp,
+            "fields": $fields,
+            "footer": {
+                "text": "Fail2Ban Security Alert"
+            }
+        }]
+    }')
 
 # Send the notification
 HTTP_CODE=$(curl -s -w "%{http_code}" -o /dev/null \

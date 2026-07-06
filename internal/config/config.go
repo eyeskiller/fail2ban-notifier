@@ -220,9 +220,9 @@ func (c *Config) GetEnabledConnectors() []ConnectorConfig {
 
 // GetConnectorByName returns a connector by name
 func (c *Config) GetConnectorByName(name string) (*ConnectorConfig, bool) {
-	for _, connector := range c.Connectors {
-		if connector.Name == name {
-			return &connector, true
+	for i := range c.Connectors {
+		if c.Connectors[i].Name == name {
+			return &c.Connectors[i], true
 		}
 	}
 	return nil, false

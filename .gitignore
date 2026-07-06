@@ -1,0 +1,13 @@
+# Binaries
+build/
+fail2ban-notify
+
+# Go workspace
+*.out
+*.test
+*.prof
+
+# IDEs
+.idea/
+.vscode/
+.DS_Store
