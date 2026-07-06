@@ -76,11 +76,10 @@ curl -sL -o "$TEMP_DIR/$ARCHIVE_NAME" "$ARCHIVE_URL" || {
 # Extract the archive
 echo "Extracting archive..."
 tar -xzf "$TEMP_DIR/$ARCHIVE_NAME" -C "$TEMP_DIR"
-EXTRACT_DIR="$TEMP_DIR/fail2ban-notify_${TAG}_linux_${GOARCH}"
 
 # Install binary
 echo "Installing fail2ban-notify binary..."
-install -m 755 "$EXTRACT_DIR/fail2ban-notify" /usr/local/bin/
+install -m 755 "$TEMP_DIR/fail2ban-notify" /usr/local/bin/
 
 # Create necessary directories
 echo "Creating configuration directories..."
@@ -89,14 +88,14 @@ mkdir -p /etc/fail2ban/connectors
 
 # Install configuration files
 echo "Installing configuration files..."
-for f in "$EXTRACT_DIR"/configs/*; do
+for f in "$TEMP_DIR"/configs/*; do
     [ -f "$f" ] && install -m 644 "$f" /etc/fail2ban/action.d/
 done
-[ -f "$EXTRACT_DIR/configs/jail.local.example" ] && install -m 644 "$EXTRACT_DIR/configs/jail.local.example" /etc/fail2ban/
+[ -f "$TEMP_DIR/configs/jail.local.example" ] && install -m 644 "$TEMP_DIR/configs/jail.local.example" /etc/fail2ban/
 
 # Install connector scripts
 echo "Installing connector scripts..."
-for connector in "$EXTRACT_DIR"/connectors/*; do
+for connector in "$TEMP_DIR"/connectors/*; do
     [ -f "$connector" ] && install -m 755 "$connector" /etc/fail2ban/connectors/
 done
 
