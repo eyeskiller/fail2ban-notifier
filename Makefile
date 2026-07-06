@@ -1,7 +1,7 @@
 # Makefile for fail2ban-notify
 
 BINARY_NAME := fail2ban-notify
-VERSION := $(shell cat VERSION 2>/dev/null || echo "1.0.0")
+VERSION := $(shell cat VERSION 2>/dev/null || echo "1.1.0")
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 GO_VERSION := $(shell go version | cut -d " " -f 3)
