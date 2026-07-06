@@ -10,6 +10,7 @@ import (
 	"github.com/eyeskiller/fail2ban-notifier/internal/config"     //nolint:depguard
 	"github.com/eyeskiller/fail2ban-notifier/internal/connectors" //nolint:depguard
 	"github.com/eyeskiller/fail2ban-notifier/internal/geoip"      //nolint:depguard
+	"github.com/eyeskiller/fail2ban-notifier/internal/setup"      //nolint:depguard
 	"github.com/eyeskiller/fail2ban-notifier/internal/version"    //nolint:depguard
 	"github.com/eyeskiller/fail2ban-notifier/pkg/types"           //nolint:depguard
 )
@@ -251,6 +252,7 @@ func main() {
 		failures    = flag.Int("failures", 0, "Number of failures")
 		configPath  = flag.String("config", "/etc/fail2ban/fail2ban-notify.json", "Path to configuration file")
 		initConfig  = flag.Bool("init", false, "Initialize configuration file")
+		setupWizard = flag.Bool("setup", false, "Run interactive setup wizard")
 		discover    = flag.Bool("discover", false, "Discover available connectors")
 		test        = flag.String("test", "", "Test specific connector")
 		status      = flag.Bool("status", false, "Show connector status")
@@ -270,7 +272,12 @@ func main() {
 	// Load configuration
 	cfg, err := config.LoadConfig(*configPath)
 	if err != nil {
-		logger.Fatalf("Failed to load config: %v", err)
+		if *setupWizard {
+			cfg = config.DefaultConfig()
+			logger.Printf("No existing config found, starting with defaults")
+		} else {
+			logger.Fatalf("Failed to load config: %v", err)
+		}
 	}
 
 	if *debug {
@@ -285,6 +292,11 @@ func main() {
 	switch {
 	case *initConfig:
 		handleInitConfig(*configPath, cfg, logger)
+	case *setupWizard:
+		wizard := setup.NewSetupWizard(*configPath, cfg, logger)
+		if err := wizard.Run(); err != nil {
+			logger.Fatalf("Setup failed: %v", err)
+		}
 	case *discover:
 		handleDiscoverConnectors(*configPath, cfg, logger)
 	case *status:

@@ -47,9 +47,27 @@ The installation process will:
 
 > **Note**: Only Linux is supported for pre-built binaries. On other systems, build from source using `make build && sudo make install`.
 
-## ⚙️ Configuration
+## 🚀 Quick Start (Recommended)
 
-After installation, the configuration file is created at `/etc/fail2ban/fail2ban-notify.json`. You'll need to edit this file to enable and configure your notification services.
+After installation, run the interactive setup wizard to configure everything in minutes:
+
+```bash
+sudo fail2ban-notify -setup
+```
+
+The wizard will guide you through:
+1. Checking prerequisites (Fail2Ban installation, permissions)
+2. Installing the Fail2Ban action configuration (`notify.conf`)
+3. Creating the application configuration
+4. Selecting and configuring notification connectors (Discord, Slack, Telegram, PagerDuty, etc.)
+5. Testing your connectors with sample data
+6. Adding the notify action to your Fail2Ban jails
+
+All configuration is done interactively — no manual file editing required.
+
+## ⚙️ Configuration (Manual)
+
+If you prefer to configure manually, the configuration file is created at `/etc/fail2ban/fail2ban-notify.json`. You can edit this file to enable and configure your notification services.
 
 ### Basic Configuration
 
@@ -87,7 +105,7 @@ After installation, the configuration file is created at `/etc/fail2ban/fail2ban
 
 ### 🔌 Enabling Connectors
 
-To enable a connector:
+To enable a connector manually:
 
 1. Check available connectors:
    ```bash
@@ -105,9 +123,14 @@ To enable a connector:
    ```
    Set `"enabled": true` for the connector you want to use.
 
+Alternatively, use the setup wizard to configure connectors interactively:
+```bash
+sudo fail2ban-notify -setup
+```
+
 ### 🔒 Fail2Ban Integration
 
-To integrate with Fail2Ban, add the `notify` action to your jail configuration:
+To integrate with Fail2Ban manually, add the `notify` action to your jail configuration. The setup wizard (`-setup`) can do this automatically for you.
 
 1. Edit your jail.local file:
    ```bash
@@ -140,6 +163,7 @@ To integrate with Fail2Ban, add the `notify` action to your jail configuration:
 | `-failures int` | Number of failures | `-failures=5` |
 | `-init` | Initialize configuration file | `-init` |
 | `-ip string` | IP address that was banned/unbanned | `-ip="192.168.1.100"` |
+| `-setup` | Run interactive setup wizard | `-setup` |
 | `-jail string` | Fail2ban jail name | `-jail="ssh"` |
 | `-status` | Show connector status | `-status` |
 | `-test string` | Test specific connector | `-test="discord"` |
@@ -176,6 +200,12 @@ Manually sends a notification to all enabled connectors.
 sudo fail2ban-notify -init
 ```
 Creates a default configuration file with sample connectors.
+
+#### Run Setup Wizard
+```bash
+sudo fail2ban-notify -setup
+```
+Interactive wizard that walks you through full configuration and deployment.
 
 ## 🔔 Supported Notification Services
 
@@ -389,6 +419,11 @@ To create an HTTP connector, add a new connector configuration to your `fail2ban
    sudo nano /etc/fail2ban/fail2ban-notify.json
    ```
    Set `"enabled": true` for your connector.
+
+   Or use the setup wizard to configure and enable it interactively:
+   ```bash
+   sudo fail2ban-notify -setup
+   ```
 
 ## 📄 License
 
