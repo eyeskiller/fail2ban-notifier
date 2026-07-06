@@ -1,0 +1,74 @@
+version: 2
+project_name: fail2ban-notify
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      - "386"
+      - arm
+    goarm:
+      - "7"
+    dir: ./cmd/fail2ban-notify
+    binary: fail2ban-notify
+    ldflags:
+      - -s -w -X github.com/eyeskiller/fail2ban-notifier/internal/version.Version={{.Version}} -X github.com/eyeskiller/fail2ban-notifier/internal/version.Commit={{.ShortCommit}} -X github.com/eyeskiller/fail2ban-notifier/internal/version.Date={{.Date}}
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    files:
+      - LICENSE
+      - README.md
+      - configs/*
+      - connectors/*
+
+nfpms:
+  - homepage: https://github.com/eyeskiller/fail2ban-notifier
+    description: A powerful notification system for Fail2Ban
+    maintainer: Lubos Beran <lubos.beran@gmail.com>
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/local/bin
+    contents:
+      - src: configs/notify.conf
+        dst: /etc/fail2ban/action.d/notify.conf
+      - src: configs/notify-enhanced.conf
+        dst: /etc/fail2ban/action.d/notify-enhanced.conf
+      - src: connectors/discord.sh
+        dst: /etc/fail2ban/connectors/discord.sh
+        file_info:
+          mode: 0755
+      - src: connectors/slack.sh
+        dst: /etc/fail2ban/connectors/slack.sh
+        file_info:
+          mode: 0755
+      - src: connectors/teams.sh
+        dst: /etc/fail2ban/connectors/teams.sh
+        file_info:
+          mode: 0755
+      - src: connectors/telegram.sh
+        dst: /etc/fail2ban/connectors/telegram.sh
+        file_info:
+          mode: 0755
+      - src: connectors/email.py
+        dst: /etc/fail2ban/connectors/email.py
+        file_info:
+          mode: 0755
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
