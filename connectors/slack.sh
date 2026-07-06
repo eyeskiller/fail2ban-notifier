@@ -16,6 +16,12 @@ if [[ -z "$WEBHOOK_URL" ]]; then
     exit 1
 fi
 
+# Check for jq (required for safe JSON construction)
+if ! command -v jq &>/dev/null; then
+    echo "Error: jq is required but not installed. Install it with: apt-get install jq" >&2
+    exit 1
+fi
+
 # Get data from environment variables
 IP="${F2B_IP:-unknown}"
 JAIL="${F2B_JAIL:-unknown}"
@@ -26,16 +32,18 @@ COUNTRY="${F2B_COUNTRY:-}"
 REGION="${F2B_REGION:-}"
 CITY="${F2B_CITY:-}"
 ISP="${F2B_ISP:-}"
-HOSTNAME="${F2B_HOSTNAME:-}"
+HOSTNAME_VAR="${F2B_HOSTNAME:-}"
 FAILURES="${F2B_FAILURES:-0}"
 
 # Determine color and emoji based on action
 if [[ "$ACTION" == "unban" ]]; then
     COLOR="good"  # Green
     EMOJI="✅"
+    ACTION_DISPLAY="Unban"
 else
     COLOR="danger"  # Red
     EMOJI="🚫"
+    ACTION_DISPLAY="Ban"
 fi
 
 # Build location string
@@ -47,55 +55,69 @@ if [[ -n "$COUNTRY" ]]; then
     fi
 fi
 
-# Create fields array
-FIELDS='[
-    {"title": "IP Address", "value": "'"$IP"'", "short": true},
-    {"title": "Jail", "value": "'"$JAIL"'", "short": true},
-    {"title": "Action", "value": "'"${ACTION^}"'", "short": true},
-    {"title": "Time", "value": "'"$TIME"'", "short": true}'
+# Build fields array safely using jq
+FIELDS=$(jq -n \
+    --arg ip "$IP" \
+    --arg jail "$JAIL" \
+    --arg action "$ACTION_DISPLAY" \
+    --arg time "$TIME" \
+    '[
+        {"title": "IP Address", "value": $ip, "short": true},
+        {"title": "Jail", "value": $jail, "short": true},
+        {"title": "Action", "value": $action, "short": true},
+        {"title": "Time", "value": $time, "short": true}
+    ]')
 
 if [[ "$FAILURES" -gt 0 ]]; then
-    FIELDS+=',{"title": "Failures", "value": "'"$FAILURES"'", "short": true}'
+    FIELDS=$(echo "$FIELDS" | jq --arg val "$FAILURES" '. + [{"title": "Failures", "value": $val, "short": true}]')
 fi
 
 if [[ -n "$ISP" ]]; then
-    FIELDS+=',{"title": "ISP", "value": "'"$ISP"'", "short": true}'
+    FIELDS=$(echo "$FIELDS" | jq --arg val "$ISP" '. + [{"title": "ISP", "value": $val, "short": true}]')
 fi
 
-if [[ -n "$HOSTNAME" ]]; then
-    FIELDS+=',{"title": "Server", "value": "'"$HOSTNAME"'", "short": true}'
+if [[ -n "$HOSTNAME_VAR" ]]; then
+    FIELDS=$(echo "$FIELDS" | jq --arg val "$HOSTNAME_VAR" '. + [{"title": "Server", "value": $val, "short": true}]')
 fi
 
 if [[ -n "$COUNTRY" ]]; then
-    FIELDS+=',{"title": "Location", "value": "'"${CITY:+$CITY, }$COUNTRY"'", "short": true}'
+    LOC_VAL="${CITY:+$CITY, }$COUNTRY"
+    FIELDS=$(echo "$FIELDS" | jq --arg val "$LOC_VAL" '. + [{"title": "Location", "value": $val, "short": true}]')
 fi
 
-FIELDS+=']'
-
-# Create the payload
-PAYLOAD=$(cat <<EOF
-{
-    "channel": "$CHANNEL",
-    "username": "$USERNAME",
-    "icon_emoji": "$ICON_EMOJI",
-    "attachments": [{
-        "color": "$COLOR",
-        "title": "$EMOJI Fail2Ban ${ACTION^} Alert",
-        "text": "IP *$IP*$LOCATION has been ${ACTION}ned in jail '$JAIL'",
-        "fields": $FIELDS,
-        "ts": $TIMESTAMP,
-        "footer": "Fail2Ban Notifier",
-        "footer_icon": "https://cdn-icons-png.flaticon.com/512/1828/1828506.png",
-        "mrkdwn_in": ["text"],
-        "actions": [{
-            "type": "button",
-            "text": "Check IP",
-            "url": "https://whatismyipaddress.com/ip/$IP"
+# Create the payload safely using jq
+TEXT="IP *${IP}*${LOCATION} has been ${ACTION}ned in jail '${JAIL}'"
+CHECK_URL="https://whatismyipaddress.com/ip/${IP}"
+PAYLOAD=$(jq -n \
+    --arg channel "$CHANNEL" \
+    --arg username "$USERNAME" \
+    --arg icon_emoji "$ICON_EMOJI" \
+    --arg color "$COLOR" \
+    --arg title "$EMOJI Fail2Ban ${ACTION_DISPLAY} Alert" \
+    --arg text "$TEXT" \
+    --argjson fields "$FIELDS" \
+    --argjson ts "$TIMESTAMP" \
+    --arg check_url "$CHECK_URL" \
+    '{
+        "channel": $channel,
+        "username": $username,
+        "icon_emoji": $icon_emoji,
+        "attachments": [{
+            "color": $color,
+            "title": $title,
+            "text": $text,
+            "fields": $fields,
+            "ts": $ts,
+            "footer": "Fail2Ban Notifier",
+            "footer_icon": "https://cdn-icons-png.flaticon.com/512/1828/1828506.png",
+            "mrkdwn_in": ["text"],
+            "actions": [{
+                "type": "button",
+                "text": "Check IP",
+                "url": $check_url
+            }]
         }]
-    }]
-}
-EOF
-)
+    }')
 
 # Send the notification
 HTTP_CODE=$(curl -s -w "%{http_code}" -o /dev/null \

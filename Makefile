@@ -1,18 +1,20 @@
 # Makefile for fail2ban-notify
 
 BINARY_NAME := fail2ban-notify
-VERSION := 1.0.0
+VERSION := $(shell cat VERSION 2>/dev/null || echo "1.0.0")
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 GO_VERSION := $(shell go version | cut -d " " -f 3)
 
-# Build flags
-LDFLAGS := -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GoVersion=$(GO_VERSION)
+# Build flags - target the correct package for ldflags
+VERSION_PKG := github.com/eyeskiller/fail2ban-notifier/internal/version
+LDFLAGS := -X $(VERSION_PKG).Version=$(VERSION) -X $(VERSION_PKG).Commit=$(COMMIT) -X $(VERSION_PKG).Date=$(BUILD_TIME)
 BUILD_FLAGS := -ldflags "$(LDFLAGS)" -trimpath
 
 # Directories
 BUILD_DIR := build
 
-.PHONY: all build clean install uninstall
+.PHONY: all build clean install uninstall test
 
 # Default target
 all: build
@@ -22,6 +24,11 @@ build:
 	@echo "Building $(BINARY_NAME) $(VERSION)..."
 	@mkdir -p $(BUILD_DIR)
 	go build $(BUILD_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/fail2ban-notify
+
+# Run tests
+test:
+	@echo "Running tests..."
+	go test ./... -v -count=1
 
 # Install locally
 install: build

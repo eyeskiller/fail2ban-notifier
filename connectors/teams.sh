@@ -13,6 +13,12 @@ if [[ -z "$WEBHOOK_URL" ]]; then
     exit 1
 fi
 
+# Check for jq (required for safe JSON construction)
+if ! command -v jq &>/dev/null; then
+    echo "Error: jq is required but not installed. Install it with: apt-get install jq" >&2
+    exit 1
+fi
+
 # Get data from environment variables
 IP="${F2B_IP:-unknown}"
 JAIL="${F2B_JAIL:-unknown}"
@@ -22,16 +28,18 @@ COUNTRY="${F2B_COUNTRY:-}"
 REGION="${F2B_REGION:-}"
 CITY="${F2B_CITY:-}"
 ISP="${F2B_ISP:-}"
-HOSTNAME="${F2B_HOSTNAME:-}"
+HOSTNAME_VAR="${F2B_HOSTNAME:-}"
 FAILURES="${F2B_FAILURES:-0}"
 
 # Determine color and emoji based on action
 if [[ "$ACTION" == "unban" ]]; then
     THEME_COLOR="44FF44"  # Green
     EMOJI="✅"
+    ACTION_DISPLAY="Unban"
 else
     THEME_COLOR="FF4444"  # Red
     EMOJI="🚫"
+    ACTION_DISPLAY="Ban"
 fi
 
 # Build location string
@@ -43,56 +51,70 @@ if [[ -n "$COUNTRY" ]]; then
     fi
 fi
 
-# Create facts array
-FACTS='[
-    {"name": "IP Address", "value": "'"$IP"'"},
-    {"name": "Jail", "value": "'"$JAIL"'"},
-    {"name": "Action", "value": "'"${ACTION^}"'"},
-    {"name": "Time", "value": "'"$TIME"'"}'
+# Build facts array safely using jq
+FACTS=$(jq -n \
+    --arg ip "$IP" \
+    --arg jail "$JAIL" \
+    --arg action "$ACTION_DISPLAY" \
+    --arg time "$TIME" \
+    '[
+        {"name": "IP Address", "value": $ip},
+        {"name": "Jail", "value": $jail},
+        {"name": "Action", "value": $action},
+        {"name": "Time", "value": $time}
+    ]')
 
 if [[ "$FAILURES" -gt 0 ]]; then
-    FACTS+=',{"name": "Failures", "value": "'"$FAILURES"'"}'
+    FACTS=$(echo "$FACTS" | jq --arg val "$FAILURES" '. + [{"name": "Failures", "value": $val}]')
 fi
 
 if [[ -n "$ISP" ]]; then
-    FACTS+=',{"name": "ISP", "value": "'"$ISP"'"}'
+    FACTS=$(echo "$FACTS" | jq --arg val "$ISP" '. + [{"name": "ISP", "value": $val}]')
 fi
 
-if [[ -n "$HOSTNAME" ]]; then
-    FACTS+=',{"name": "Server", "value": "'"$HOSTNAME"'"}'
+if [[ -n "$HOSTNAME_VAR" ]]; then
+    FACTS=$(echo "$FACTS" | jq --arg val "$HOSTNAME_VAR" '. + [{"name": "Server", "value": $val}]')
 fi
 
 if [[ -n "$COUNTRY" ]]; then
-    FACTS+=',{"name": "Location", "value": "'"${CITY:+$CITY, }$COUNTRY"'"}'
+    LOC_VAL="${CITY:+$CITY, }$COUNTRY"
+    FACTS=$(echo "$FACTS" | jq --arg val "$LOC_VAL" '. + [{"name": "Location", "value": $val}]')
 fi
 
-FACTS+=']'
+# Create the payload safely using jq
+SUMMARY="Fail2Ban ${ACTION_DISPLAY}: ${IP}"
+ACTIVITY_TITLE="${EMOJI} Fail2Ban ${ACTION_DISPLAY} Alert"
+ACTIVITY_SUBTITLE="IP ${IP}${LOCATION} has been ${ACTION}ned in jail '${JAIL}'"
+CHECK_URL="https://whatismyipaddress.com/ip/${IP}"
 
-# Create the payload
-PAYLOAD=$(cat <<EOF
-{
-    "@type": "MessageCard",
-    "@context": "http://schema.org/extensions",
-    "themeColor": "$THEME_COLOR",
-    "summary": "Fail2Ban ${ACTION^}: $IP",
-    "sections": [{
-        "activityTitle": "$EMOJI Fail2Ban ${ACTION^} Alert",
-        "activitySubtitle": "IP $IP$LOCATION has been ${ACTION}ned in jail '$JAIL'",
-        "activityImage": "https://cdn-icons-png.flaticon.com/512/1828/1828506.png",
-        "facts": $FACTS,
-        "markdown": true
-    }],
-    "potentialAction": [{
-        "@type": "OpenUri",
-        "name": "Check IP Details",
-        "targets": [{
-            "os": "default",
-            "uri": "https://whatismyipaddress.com/ip/$IP"
+PAYLOAD=$(jq -n \
+    --arg theme_color "$THEME_COLOR" \
+    --arg summary "$SUMMARY" \
+    --arg act_title "$ACTIVITY_TITLE" \
+    --arg act_subtitle "$ACTIVITY_SUBTITLE" \
+    --argjson facts "$FACTS" \
+    --arg check_url "$CHECK_URL" \
+    '{
+        "@type": "MessageCard",
+        "@context": "http://schema.org/extensions",
+        "themeColor": $theme_color,
+        "summary": $summary,
+        "sections": [{
+            "activityTitle": $act_title,
+            "activitySubtitle": $act_subtitle,
+            "activityImage": "https://cdn-icons-png.flaticon.com/512/1828/1828506.png",
+            "facts": $facts,
+            "markdown": true
+        }],
+        "potentialAction": [{
+            "@type": "OpenUri",
+            "name": "Check IP Details",
+            "targets": [{
+                "os": "default",
+                "uri": $check_url
+            }]
         }]
-    }]
-}
-EOF
-)
+    }')
 
 # Send the notification
 HTTP_CODE=$(curl -s -w "%{http_code}" -o /dev/null \

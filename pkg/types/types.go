@@ -16,9 +16,9 @@ type NotificationData struct {
 	ISP       string    `json:"isp"`
 	Hostname  string    `json:"hostname,omitempty"`
 	Failures  int       `json:"failures,omitempty"`
-	Timezone  string    `json:"timezone,nil"`
-	Latitude  float64   `json:"latitude,nil"`
-	Longitude float64   `json:"longitude,nil"`
+	Timezone  string    `json:"timezone,omitempty"`
+	Latitude  float64   `json:"latitude,omitempty"`
+	Longitude float64   `json:"longitude,omitempty"`
 }
 
 // String returns a string representation of the notification data

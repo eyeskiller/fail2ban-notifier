@@ -19,6 +19,12 @@ if [[ -z "$CHAT_ID" ]]; then
     exit 1
 fi
 
+# Check for jq (required for safe JSON construction)
+if ! command -v jq &>/dev/null; then
+    echo "Error: jq is required but not installed. Install it with: apt-get install jq" >&2
+    exit 1
+fi
+
 # Get data from environment variables
 IP="${F2B_IP:-unknown}"
 JAIL="${F2B_JAIL:-unknown}"
@@ -28,16 +34,18 @@ COUNTRY="${F2B_COUNTRY:-}"
 REGION="${F2B_REGION:-}"
 CITY="${F2B_CITY:-}"
 ISP="${F2B_ISP:-}"
-HOSTNAME="${F2B_HOSTNAME:-}"
+HOSTNAME_VAR="${F2B_HOSTNAME:-}"
 FAILURES="${F2B_FAILURES:-0}"
 
 # Determine emoji based on action
 if [[ "$ACTION" == "unban" ]]; then
     EMOJI="✅"
     ACTION_EMOJI="🔓"
+    ACTION_DISPLAY="Unban"
 else
     EMOJI="🚫"
     ACTION_EMOJI="🔒"
+    ACTION_DISPLAY="Ban"
 fi
 
 # Build location string
@@ -58,13 +66,15 @@ IP_ESCAPED=$(escape_markdown "$IP")
 JAIL_ESCAPED=$(escape_markdown "$JAIL")
 LOCATION_ESCAPED=$(escape_markdown "$LOCATION")
 
+TIME_FORMATTED=$(date -d "$TIME" '+%Y-%m-%d %H:%M:%S %Z' 2>/dev/null || echo "$TIME")
+
 # Create the message
-MESSAGE="$EMOJI *Fail2Ban ${ACTION^} Alert*
+MESSAGE="$EMOJI *Fail2Ban ${ACTION_DISPLAY} Alert*
 
 🌐 *IP:* \`$IP_ESCAPED\`$LOCATION_ESCAPED
 $ACTION_EMOJI *Jail:* $JAIL_ESCAPED
-⚡ *Action:* ${ACTION^}
-🕐 *Time:* $(date -d "$TIME" '+%Y-%m-%d %H:%M:%S %Z' 2>/dev/null || echo "$TIME")"
+⚡ *Action:* ${ACTION_DISPLAY}
+🕐 *Time:* $TIME_FORMATTED"
 
 if [[ "$FAILURES" -gt 0 ]]; then
     MESSAGE="$MESSAGE
@@ -77,41 +87,50 @@ if [[ -n "$ISP" ]]; then
 🏢 *ISP:* $ISP_ESCAPED"
 fi
 
-if [[ -n "$HOSTNAME" ]]; then
-    HOSTNAME_ESCAPED=$(escape_markdown "$HOSTNAME")
+if [[ -n "$HOSTNAME_VAR" ]]; then
+    HOSTNAME_ESCAPED=$(escape_markdown "$HOSTNAME_VAR")
     MESSAGE="$MESSAGE
 🖥️ *Server:* $HOSTNAME_ESCAPED"
 fi
 
-# Add action buttons
-INLINE_KEYBOARD=""
+# Build reply_markup safely using jq if banning
+REPLY_MARKUP="null"
 if [[ "$ACTION" == "ban" ]]; then
-    INLINE_KEYBOARD='"reply_markup": {
-        "inline_keyboard": [[
-            {
-                "text": "🔍 Check IP",
-                "url": "https://whatismyipaddress.com/ip/'$IP'"
-            },
-            {
-                "text": "📊 IP Info",
-                "url": "https://ipinfo.io/'$IP'"
-            }
-        ]]
-    },'
+    CHECK_URL="https://whatismyipaddress.com/ip/$IP"
+    IPINFO_URL="https://ipinfo.io/$IP"
+    REPLY_MARKUP=$(jq -n \
+        --arg url1 "$CHECK_URL" \
+        --arg url2 "$IPINFO_URL" \
+        '{
+            "inline_keyboard": [[
+                {
+                    "text": "🔍 Check IP",
+                    "url": $url1
+                },
+                {
+                    "text": "📊 IP Info",
+                    "url": $url2
+                }
+            ]]
+        }')
 fi
 
-# Create the payload
-PAYLOAD=$(cat <<EOF
-{
-    "chat_id": "$CHAT_ID",
-    "text": "$MESSAGE",
-    "parse_mode": "Markdown",
-    "disable_web_page_preview": true,
-    $INLINE_KEYBOARD
-    "disable_notification": false
-}
-EOF
-)
+# Create the payload safely using jq
+PAYLOAD=$(jq -n \
+    --arg chat_id "$CHAT_ID" \
+    --arg text "$MESSAGE" \
+    --argjson reply_markup "$REPLY_MARKUP" \
+    '{
+        "chat_id": $chat_id,
+        "text": $text,
+        "parse_mode": "Markdown",
+        "disable_web_page_preview": true,
+        "disable_notification": false
+    }')
+
+if [[ "$REPLY_MARKUP" != "null" ]]; then
+    PAYLOAD=$(echo "$PAYLOAD" | jq --argjson rm "$REPLY_MARKUP" '. + {"reply_markup": $rm}')
+fi
 
 # API URL
 API_URL="https://api.telegram.org/bot$BOT_TOKEN/sendMessage"

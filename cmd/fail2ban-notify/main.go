@@ -169,7 +169,8 @@ func handleNotification(ip, jail, action string, failures int, cfg *config.Confi
 	// Perform GeoIP lookup
 	var geoInfo *geoip.Info
 	if cfg.GeoIP.Enabled {
-		geoInfo, lookupErr := geoManager.Lookup(ip)
+		var lookupErr error
+		geoInfo, lookupErr = geoManager.Lookup(ip)
 		if lookupErr != nil {
 			if cfg.Debug {
 				logger.Printf("GeoIP lookup failed: %v", lookupErr)
