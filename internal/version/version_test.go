@@ -17,7 +17,7 @@ func TestGetBuildInfo(t *testing.T) {
 		Date = savedDate
 	}()
 
-	Version = "1.1.1"
+	Version = "1.1.2"
 	Commit = "abc1234"
 	Date = "2026-07-06T12:00:00Z"
 
@@ -26,7 +26,7 @@ func TestGetBuildInfo(t *testing.T) {
 	if !strings.Contains(info, "fail2ban-notifier") {
 		t.Errorf("GetBuildInfo() missing project name, got: %s", info)
 	}
-	if !strings.Contains(info, "1.1.1") {
+	if !strings.Contains(info, "1.1.2") {
 		t.Errorf("GetBuildInfo() missing version, got: %s", info)
 	}
 	if !strings.Contains(info, "abc1234") {

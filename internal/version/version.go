@@ -8,7 +8,7 @@ import (
 
 // Build information. Populated at build-time.
 var (
-	Version   = "1.1.1"
+	Version   = "1.1.2"
 	Commit    = "none"
 	Date      = "unknown"
 	GoVersion = runtime.Version()
