@@ -2,110 +2,120 @@
 set -e
 
 # fail2ban-notifier installer script
-echo "🚀 ====== fail2ban-notifier installer ====== 🚀"
-echo "🔒 This script will install fail2ban-notifier on your system 🔒"
+# Downloads the latest pre-built binary from GitHub releases
+echo "===== fail2ban-notifier installer ====="
 echo ""
 
 # Check if running as root
 if [ "$(id -u)" -ne 0 ]; then
-    echo "❌ This script must be run as root. Please use sudo."
+    echo "This script must be run as root. Please use sudo."
     exit 1
 fi
 
 # Check if fail2ban-notify is already installed
 if [ -f "/usr/local/bin/fail2ban-notify" ]; then
-    echo "🔍 fail2ban-notify is already installed on your system."
-    read -p "⚠️  Do you want to reinstall it? (y/n): " choice
-    case "$choice" in 
-        y|Y ) echo "✅ Proceeding with reinstallation...";;
-        * ) echo "❌ Installation cancelled."; exit 0;;
+    echo "fail2ban-notify is already installed."
+    read -p "Do you want to reinstall it? (y/n): " choice
+    case "$choice" in
+        y|Y ) echo "Proceeding with reinstallation...";;
+        * ) echo "Installation cancelled."; exit 0;;
     esac
 fi
 
-# Create a temporary directory for the repository
-TEMP_DIR=$(mktemp -d)
-echo "📁 Created temporary directory: $TEMP_DIR"
+# Detect OS and architecture
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m)
 
-# Download the repository from GitHub
-echo "📥 Downloading fail2ban-notifier from GitHub..."
-git clone https://github.com/eyeskiller/fail2ban-notifier.git "$TEMP_DIR"
-echo "✅ Repository downloaded successfully."
-
-# Change to the repository directory
-cd "$TEMP_DIR"
-
-# Check if binary exists in the build directory
-if [ ! -f "build/fail2ban-notify" ]; then
-    echo "🔧 Pre-built binary not found. Building from source..."
-    make build
-    if [ ! -f "build/fail2ban-notify" ]; then
-        echo "❌ Error: Failed to build binary."
-        echo "   Please check build dependencies and try again."
-        rm -rf "$TEMP_DIR"
+case "$ARCH" in
+    x86_64|amd64)  GOARCH="amd64" ;;
+    aarch64|arm64) GOARCH="arm64" ;;
+    armv7l|armv8l)  GOARCH="armv7" ;;
+    i386|i686)     GOARCH="386" ;;
+    *)
+        echo "Unsupported architecture: $ARCH. Building from source instead."
+        echo "Install Go and run: make build && sudo make install"
         exit 1
-    fi
-    echo "✅ Binary built successfully."
+        ;;
+esac
+
+# Only Linux binaries are published
+if [ "$OS" != "linux" ]; then
+    echo "No pre-built binary for $OS. Building from source instead."
+    echo "Install Go and run: make build && sudo make install"
+    exit 1
 fi
 
+# Get the latest release tag
+echo "Fetching latest release info..."
+LATEST=$(curl -sL https://api.github.com/repos/eyeskiller/fail2ban-notifier/releases/latest 2>/dev/null || echo "")
+TAG=$(echo "$LATEST" | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+
+if [ -z "$TAG" ]; then
+    echo "Could not determine latest release. Using version from VERSION file."
+    TAG=$(curl -sL https://raw.githubusercontent.com/eyeskiller/fail2ban-notifier/main/VERSION 2>/dev/null || echo "1.1.0")
+fi
+
+echo "Latest version: $TAG"
+
+# Create a temporary directory
+TEMP_DIR=$(mktemp -d)
+echo "Created temporary directory: $TEMP_DIR"
+
+# Download the archive
+ARCHIVE_NAME="fail2ban-notify_${TAG}_linux_${GOARCH}.tar.gz"
+ARCHIVE_URL="https://github.com/eyeskiller/fail2ban-notifier/releases/download/${TAG}/${ARCHIVE_NAME}"
+
+echo "Downloading $ARCHIVE_NAME..."
+curl -sL -o "$TEMP_DIR/$ARCHIVE_NAME" "$ARCHIVE_URL" || {
+    echo "Failed to download archive for linux/$GOARCH."
+    echo "Available releases: https://github.com/eyeskiller/fail2ban-notifier/releases"
+    rm -rf "$TEMP_DIR"
+    exit 1
+}
+
+# Extract the archive
+echo "Extracting archive..."
+tar -xzf "$TEMP_DIR/$ARCHIVE_NAME" -C "$TEMP_DIR"
+EXTRACT_DIR="$TEMP_DIR/fail2ban-notify_${TAG}_linux_${GOARCH}"
+
 # Install binary
-echo "📦 Installing fail2ban-notify binary..."
-install -m 755 build/fail2ban-notify /usr/local/bin/
+echo "Installing fail2ban-notify binary..."
+install -m 755 "$EXTRACT_DIR/fail2ban-notify" /usr/local/bin/
 
 # Create necessary directories
-echo "📂 Creating configuration directories..."
+echo "Creating configuration directories..."
 mkdir -p /etc/fail2ban/action.d
 mkdir -p /etc/fail2ban/connectors
 
 # Install configuration files
-echo "⚙️ Installing configuration files..."
-install -m 644 configs/notify.conf /etc/fail2ban/action.d/
-install -m 644 configs/notify-enhanced.conf /etc/fail2ban/action.d/
-install -m 644 configs/jail.local.example /etc/fail2ban/
+echo "Installing configuration files..."
+for f in "$EXTRACT_DIR"/configs/*; do
+    [ -f "$f" ] && install -m 644 "$f" /etc/fail2ban/action.d/
+done
+[ -f "$EXTRACT_DIR/configs/jail.local.example" ] && install -m 644 "$EXTRACT_DIR/configs/jail.local.example" /etc/fail2ban/
 
 # Install connector scripts
-echo "🔌 Installing connector scripts..."
-for connector in connectors/*; do
-    install -m 755 "$connector" /etc/fail2ban/connectors/
+echo "Installing connector scripts..."
+for connector in "$EXTRACT_DIR"/connectors/*; do
+    [ -f "$connector" ] && install -m 755 "$connector" /etc/fail2ban/connectors/
 done
 
 # Initialize configuration
-echo "🔧 Initializing configuration..."
-/usr/local/bin/fail2ban-notify -init || echo "⚠️ Could not initialize config (may need manual setup)"
+echo "Initializing configuration..."
+/usr/local/bin/fail2ban-notify -init || echo "Could not initialize config (may need manual setup)"
 
-# Prepare for cleanup
-CLEANUP_SCRIPT=$(mktemp)
-chmod +x "$CLEANUP_SCRIPT"
-
-# Create a cleanup script that will run after this script exits
-cat > "$CLEANUP_SCRIPT" << EOF
-#!/bin/bash
-echo "🧹 Performing cleanup..."
+# Cleanup
+echo "Cleaning up..."
 rm -rf "$TEMP_DIR"
-echo "🗑️  Removed temporary directory: $TEMP_DIR"
-rm -f "\$0"  # Self-delete this cleanup script
-EOF
-
-echo "🧹 Will remove temporary directory after installation."
-# Schedule the cleanup to run after this script exits
-trap "$CLEANUP_SCRIPT" EXIT
 
 echo ""
-echo "✨ ====== Installation complete! ====== ✨"
-echo "🚀 fail2ban-notifier has been installed to /usr/local/bin/fail2ban-notify"
-echo "📝 Configuration file has been initialized at /etc/fail2ban/fail2ban-notify.json"
-echo "🔒 fail2ban actions have been installed at:"
-echo "  - 📄 /etc/fail2ban/action.d/notify.conf (standard)"
-echo "  - 📄 /etc/fail2ban/action.d/notify-enhanced.conf (enhanced)"
-echo "🔌 Connector scripts have been installed to /etc/fail2ban/connectors/"
-echo "📋 Example jail configuration has been installed at /etc/fail2ban/jail.local.example"
+echo "====== Installation complete! ======"
+echo "fail2ban-notifier has been installed to /usr/local/bin/fail2ban-notify"
+echo "Configuration file has been initialized at /etc/fail2ban/fail2ban-notify.json"
 echo ""
-echo "📌 Next steps:"
-echo "  1️⃣  Configure your notification services by editing /etc/fail2ban/fail2ban-notify.json"
-echo "  2️⃣  Test your configuration: fail2ban-notify -status"
-echo "  3️⃣  Add the 'notify' action to your fail2ban jail.local file"
-echo "      Example: action = iptables-multiport[name=ssh, port=\"ssh\", protocol=tcp]"
-echo "               notify[name=ssh]"
+echo "Next steps:"
+echo "  1. Configure your notification services by editing /etc/fail2ban/fail2ban-notify.json"
+echo "  2. Test your configuration: fail2ban-notify -status"
+echo "  3. Add the 'notify' action to your fail2ban jail.local file"
 echo ""
-echo "📚 For more information, see the documentation at:"
-echo "🔗 https://github.com/eyeskiller/fail2ban-notifier"
-echo "✨ ====================================== ✨"
+echo "For more information: https://github.com/eyeskiller/fail2ban-notifier"
