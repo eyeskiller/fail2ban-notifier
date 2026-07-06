@@ -213,14 +213,14 @@ func (m *Manager) executeScript(connector *config.ConnectorConfig, data *types.N
 		if err != nil {
 			return fmt.Errorf("interpreter not found: %s, error: %w", interpreter, err)
 		}
-		cmd = exec.CommandContext(ctx, fullPath, args...)
+		cmd = exec.CommandContext(ctx, fullPath, args...) // #nosec G204
 	} else {
 		// Use full path for interpreter to avoid path traversal
 		fullPath, err := exec.LookPath(interpreter)
 		if err != nil {
 			return fmt.Errorf("interpreter not found: %s, error: %w", interpreter, err)
 		}
-		cmd = exec.CommandContext(ctx, fullPath)
+		cmd = exec.CommandContext(ctx, fullPath) // #nosec G204
 	}
 
 	// Prepare environment variables

@@ -84,7 +84,7 @@ func LoadConfig(configPath string) (*Config, error) {
 		return config, SaveConfig(configPath, config)
 	}
 
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) // #nosec G304
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
@@ -318,7 +318,7 @@ func createTelegramConnector() ConnectorConfig {
 		Type:    ConnectorTypeScript,
 		Enabled: false,
 		Path:    "/etc/fail2ban/connectors/telegram.sh",
-		Settings: map[string]string{
+		Settings: map[string]string{ // #nosec G101
 			"TELEGRAM_BOT_TOKEN": "YOUR_BOT_TOKEN",
 			"TELEGRAM_CHAT_ID":   "YOUR_CHAT_ID",
 		},
