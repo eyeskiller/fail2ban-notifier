@@ -30,8 +30,11 @@ func handleInitConfig(configPath string, cfg *config.Config, logger *log.Logger)
 	if discoverErr != nil {
 		logger.Printf("Warning: Failed to discover connectors: %v", discoverErr)
 	} else {
-		// Merge discovered connectors with sample config
+		// Merge discovered connectors with sample config (no duplicates)
 		for _, conn := range discovered {
+			if _, exists := sampleConfig.GetConnectorByName(conn.Name); exists {
+				continue
+			}
 			connCopy := conn // Create a local copy to avoid memory aliasing
 			sampleConfig.AddConnector(&connCopy)
 		}
