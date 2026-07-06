@@ -117,7 +117,7 @@ func (w *SetupWizard) installActionConfig() error {
 	}
 
 	actionDir := filepath.Dir(actionConfigPath)
-	if err := os.MkdirAll(actionDir, 0755); err != nil {
+	if err := os.MkdirAll(actionDir, 0750); err != nil {
 		return fmt.Errorf("failed to create action directory %s: %w", actionDir, err)
 	}
 
@@ -145,7 +145,7 @@ actionunban = /usr/local/bin/fail2ban-notify -ip="<ip>" -jail="<name>" -action="
 name = default
 `
 
-	if err := os.WriteFile(actionConfigPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(actionConfigPath, []byte(content), 0600); err != nil {
 		return fmt.Errorf("failed to write action config: %w", err)
 	}
 	fmt.Printf("  ✅  Action config installed to %s\n", actionConfigPath)
@@ -252,7 +252,9 @@ func (w *SetupWizard) configureSingleConnector(name string, status connectors.Co
 		if c.Name == name {
 			updated := w.promptConnectorSettings(&c)
 			w.cfg.Connectors[i] = updated
-			config.SaveConfig(w.configPath, w.cfg)
+			if err := config.SaveConfig(w.configPath, w.cfg); err != nil {
+				w.logger.Printf("Warning: Failed to save config: %v", err)
+			}
 			fmt.Printf("  ✅  %s configured and saved\n", name)
 			return
 		}
@@ -269,7 +271,9 @@ func (w *SetupWizard) configureSingleConnector(name string, status connectors.Co
 	}
 	updated := w.promptConnectorSettings(&newConn)
 	w.cfg.AddConnector(&updated)
-	config.SaveConfig(w.configPath, w.cfg)
+	if err := config.SaveConfig(w.configPath, w.cfg); err != nil {
+		w.logger.Printf("Warning: Failed to save config: %v", err)
+	}
 	fmt.Printf("  ✅  %s configured and saved\n", name)
 }
 
@@ -527,7 +531,7 @@ func (w *SetupWizard) discoverJails() []string {
 }
 
 func (w *SetupWizard) writeJailConfig(jails []string) error {
-	if err := os.MkdirAll(jailConfigDir, 0755); err != nil {
+	if err := os.MkdirAll(jailConfigDir, 0750); err != nil {
 		return fmt.Errorf("failed to create jail.d directory: %w", err)
 	}
 
@@ -555,7 +559,7 @@ func (w *SetupWizard) writeJailConfig(jails []string) error {
 		sb.WriteString(fmt.Sprintf("[%s]\naction = notify\n\n", jail))
 	}
 
-	if err := os.WriteFile(path, []byte(sb.String()), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(sb.String()), 0600); err != nil {
 		return fmt.Errorf("failed to write jail config: %w", err)
 	}
 
