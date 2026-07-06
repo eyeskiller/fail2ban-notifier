@@ -158,3 +158,275 @@ exit 0
 		t.Errorf("expected script execution to succeed, got: %v", err)
 	}
 }
+
+func TestDiscoverConnectors(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping discovery test on Windows")
+	}
+
+	tmpDir, err := os.MkdirTemp("", "f2b-discover-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create executable scripts
+	for _, name := range []string{"discord.sh", "slack.py", "teams.js"} {
+		path := filepath.Join(tmpDir, name)
+		if err := os.WriteFile(path, []byte("#!/bin/bash\nexit 0"), 0755); err != nil {
+			t.Fatalf("failed to create %s: %v", name, err)
+		}
+	}
+
+	// Create a non-executable file (should be skipped)
+	nonExecPath := filepath.Join(tmpDir, "readme.txt")
+	if err := os.WriteFile(nonExecPath, []byte("hello"), 0644); err != nil {
+		t.Fatalf("failed to create readme.txt: %v", err)
+	}
+
+	// Create a subdirectory (should be skipped)
+	subDir := filepath.Join(tmpDir, "subdir")
+	if err := os.Mkdir(subDir, 0755); err != nil {
+		t.Fatalf("failed to create subdir: %v", err)
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.ConnectorPath = tmpDir
+	logger := log.New(os.Stderr, "[test] ", log.LstdFlags)
+	m := NewManager(cfg, logger)
+
+	discovered, err := m.DiscoverConnectors()
+	if err != nil {
+		t.Fatalf("DiscoverConnectors failed: %v", err)
+	}
+
+	if len(discovered) != 3 {
+		t.Fatalf("expected 3 discovered connectors, got %d", len(discovered))
+	}
+
+	names := make(map[string]bool)
+	for _, c := range discovered {
+		names[c.Name] = true
+		if !filepath.IsAbs(c.Path) {
+			t.Errorf("connector %q path is not absolute: %s", c.Name, c.Path)
+		}
+	}
+
+	for _, expected := range []string{"discord", "slack", "teams"} {
+		if !names[expected] {
+			t.Errorf("expected connector %q not found among %v", expected, names)
+		}
+	}
+}
+
+func TestDiscoverConnectorsEmptyDir(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "f2b-empty-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	cfg := config.DefaultConfig()
+	cfg.ConnectorPath = tmpDir
+	logger := log.New(os.Stderr, "[test] ", log.LstdFlags)
+	m := NewManager(cfg, logger)
+
+	discovered, err := m.DiscoverConnectors()
+	if err != nil {
+		t.Fatalf("DiscoverConnectors failed: %v", err)
+	}
+	if len(discovered) != 0 {
+		t.Errorf("expected 0 connectors, got %d", len(discovered))
+	}
+}
+
+func TestDiscoverConnectorsNonexistentDir(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.ConnectorPath = "/nonexistent/path"
+	logger := log.New(os.Stderr, "[test] ", log.LstdFlags)
+	m := NewManager(cfg, logger)
+
+	discovered, err := m.DiscoverConnectors()
+	if err != nil {
+		t.Fatalf("DiscoverConnectors failed: %v", err)
+	}
+	if len(discovered) != 0 {
+		t.Errorf("expected 0 connectors for nonexistent dir, got %d", len(discovered))
+	}
+}
+
+func TestValidateConnectorScript(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping script validation test on Windows")
+	}
+
+	tmpDir, err := os.MkdirTemp("", "f2b-validate-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	scriptPath := filepath.Join(tmpDir, "valid.sh")
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/bash\nexit 0"), 0755); err != nil {
+		t.Fatalf("failed to create script: %v", err)
+	}
+
+	logger := log.New(os.Stderr, "[test] ", log.LstdFlags)
+	m := NewManager(config.DefaultConfig(), logger)
+
+	t.Run("valid script", func(t *testing.T) {
+		err := m.ValidateConnector(&config.ConnectorConfig{
+			Name: "test",
+			Type: config.ConnectorTypeScript,
+			Path: scriptPath,
+		})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+
+	t.Run("non-absolute path", func(t *testing.T) {
+		err := m.ValidateConnector(&config.ConnectorConfig{
+			Name: "relative",
+			Type: config.ConnectorTypeScript,
+			Path: "relative/path.sh",
+		})
+		if err == nil {
+			t.Error("expected error for relative path")
+		}
+	})
+
+	t.Run("nonexistent file", func(t *testing.T) {
+		err := m.ValidateConnector(&config.ConnectorConfig{
+			Name: "missing",
+			Type: config.ConnectorTypeScript,
+			Path: "/nonexistent/script.sh",
+		})
+		if err == nil {
+			t.Error("expected error for nonexistent file")
+		}
+	})
+
+	t.Run("not executable", func(t *testing.T) {
+		nonExecPath := filepath.Join(tmpDir, "not-exec.sh")
+		if err := os.WriteFile(nonExecPath, []byte("exit 0"), 0644); err != nil {
+			t.Fatalf("failed to create non-exec file: %v", err)
+		}
+		err := m.ValidateConnector(&config.ConnectorConfig{
+			Name: "not-exec",
+			Type: config.ConnectorTypeScript,
+			Path: nonExecPath,
+		})
+		if err == nil {
+			t.Error("expected error for non-executable file")
+		}
+	})
+}
+
+func TestValidateConnectorHTTP(t *testing.T) {
+	logger := log.New(os.Stderr, "[test] ", log.LstdFlags)
+	m := NewManager(config.DefaultConfig(), logger)
+
+	t.Run("valid HTTP connector", func(t *testing.T) {
+		err := m.ValidateConnector(&config.ConnectorConfig{
+			Name: "webhook",
+			Type: config.ConnectorTypeHTTP,
+			Settings: map[string]string{
+				"url": "https://example.com/webhook",
+			},
+		})
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+
+	t.Run("missing URL", func(t *testing.T) {
+		err := m.ValidateConnector(&config.ConnectorConfig{
+			Name: "webhook",
+			Type: config.ConnectorTypeHTTP,
+		})
+		if err == nil {
+			t.Error("expected error for missing URL")
+		}
+	})
+
+	t.Run("unknown type", func(t *testing.T) {
+		err := m.ValidateConnector(&config.ConnectorConfig{
+			Name: "bad",
+			Type: "invalid-type",
+		})
+		if err == nil {
+			t.Error("expected error for unknown type")
+		}
+	})
+}
+
+func TestGetConnectorStatus(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping status test on Windows")
+	}
+
+	tmpDir, err := os.MkdirTemp("", "f2b-status-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	scriptPath := filepath.Join(tmpDir, "active.sh")
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/bash\nexit 0"), 0755); err != nil {
+		t.Fatalf("failed to create script: %v", err)
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.Connectors = []config.ConnectorConfig{
+		{
+			Name:    "active",
+			Type:    config.ConnectorTypeScript,
+			Enabled: true,
+			Path:    scriptPath,
+		},
+		{
+			Name:    "disabled",
+			Type:    config.ConnectorTypeScript,
+			Enabled: false,
+			Path:    scriptPath,
+		},
+		{
+			Name:    "invalid",
+			Type:    config.ConnectorTypeScript,
+			Enabled: true,
+			Path:    "/nonexistent/script.sh",
+		},
+	}
+
+	logger := log.New(os.Stderr, "[test] ", log.LstdFlags)
+	m := NewManager(cfg, logger)
+	status := m.GetConnectorStatus()
+
+	if len(status) != 3 {
+		t.Fatalf("expected 3 status entries, got %d", len(status))
+	}
+
+	tests := []struct {
+		name           string
+		expectedStatus string
+	}{
+		{"active", "ready"},
+		{"disabled", "disabled"},
+		{"invalid", "invalid"},
+	}
+
+	for _, tt := range tests {
+		s, ok := status[tt.name]
+		if !ok {
+			t.Errorf("missing status for connector %q", tt.name)
+			continue
+		}
+		if s.Status != tt.expectedStatus {
+			t.Errorf("connector %q status = %q, want %q", tt.name, s.Status, tt.expectedStatus)
+		}
+		if tt.name == "invalid" && s.Error == "" {
+			t.Errorf("expected error message for invalid connector")
+		}
+	}
+}

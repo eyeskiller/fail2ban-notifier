@@ -87,3 +87,109 @@ func TestGeoIPCache(t *testing.T) {
 		t.Error("expected cache to be cleared")
 	}
 }
+
+func TestGetCacheStats(t *testing.T) {
+	logger := log.New(os.Stderr, "[test] ", log.LstdFlags)
+	cfg := config.GeoIPConfig{
+		Enabled: true,
+		Service: "ipapi",
+		Cache:   true,
+		TTL:     300,
+	}
+
+	m := NewManager(cfg, logger)
+
+	stats := m.GetCacheStats()
+	if stats == nil {
+		t.Fatal("expected non-nil stats")
+	}
+
+	if stats["enabled"] != true {
+		t.Errorf("enabled = %v, want true", stats["enabled"])
+	}
+	if stats["entries"] != 0 {
+		t.Errorf("entries = %v, want 0", stats["entries"])
+	}
+	if stats["ttl_seconds"] != 300 {
+		t.Errorf("ttl_seconds = %v, want 300", stats["ttl_seconds"])
+	}
+	if stats["service"] != "ipapi" {
+		t.Errorf("service = %v, want ipapi", stats["service"])
+	}
+}
+
+func TestGetCacheStatsWithEntries(t *testing.T) {
+	logger := log.New(os.Stderr, "[test] ", log.LstdFlags)
+	m := NewManager(config.GeoIPConfig{Service: "ipapi", Cache: true, TTL: 60}, logger)
+
+	m.setCached("8.8.8.8", &Info{IP: "8.8.8.8"})
+	m.setCached("1.1.1.1", &Info{IP: "1.1.1.1"})
+
+	stats := m.GetCacheStats()
+	if stats["entries"] != 2 {
+		t.Errorf("entries = %v, want 2", stats["entries"])
+	}
+}
+
+func TestGetAvailableServicesDefault(t *testing.T) {
+	logger := log.New(os.Stderr, "[test] ", log.LstdFlags)
+	m := NewManager(config.GeoIPConfig{Service: "ipapi"}, logger)
+
+	services := m.GetAvailableServices()
+	serviceSet := make(map[string]bool)
+	for _, s := range services {
+		serviceSet[s] = true
+	}
+
+	if !serviceSet["ipapi"] {
+		t.Errorf("expected 'ipapi' in services, got %v", services)
+	}
+	if serviceSet["ipgeolocation"] {
+		t.Errorf("'ipgeolocation' should not be available without API key")
+	}
+}
+
+func TestGetAvailableServicesWithAPIKey(t *testing.T) {
+	logger := log.New(os.Stderr, "[test] ", log.LstdFlags)
+	m := NewManager(config.GeoIPConfig{
+		Service: "ipapi",
+		APIKey:  "test-key",
+	}, logger)
+
+	services := m.GetAvailableServices()
+	serviceSet := make(map[string]bool)
+	for _, s := range services {
+		serviceSet[s] = true
+	}
+
+	if !serviceSet["ipapi"] {
+		t.Errorf("expected 'ipapi' in services, got %v", services)
+	}
+	if !serviceSet["ipgeolocation"] {
+		t.Errorf("expected 'ipgeolocation' in services, got %v", services)
+	}
+}
+
+func TestServiceGetName(t *testing.T) {
+	ipapi := &IPAPIService{}
+	if name := ipapi.GetName(); name != "ip-api.com" {
+		t.Errorf("IPAPIService.GetName() = %q, want %q", name, "ip-api.com")
+	}
+
+	ipgeo := &IPGeolocationService{apiKey: "test"}
+	if name := ipgeo.GetName(); name != "ipgeolocation.io" {
+		t.Errorf("IPGeolocationService.GetName() = %q, want %q", name, "ipgeolocation.io")
+	}
+}
+
+func TestValidateServiceUnknown(t *testing.T) {
+	logger := log.New(os.Stderr, "[test] ", log.LstdFlags)
+	m := NewManager(config.GeoIPConfig{}, logger)
+
+	err := m.ValidateService("nonexistent")
+	if err == nil {
+		t.Error("expected error for unknown service")
+	}
+}
+
+
