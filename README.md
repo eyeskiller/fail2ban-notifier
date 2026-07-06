@@ -7,6 +7,9 @@
   <p>Send alerts to various services when IPs are banned or unbanned</p>
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![Go Version](https://img.shields.io/github/go-mod/go-version/eyeskiller/fail2ban-notifier)](https://go.dev)
+  [![Release](https://img.shields.io/github/v/release/eyeskiller/fail2ban-notifier)](https://github.com/eyeskiller/fail2ban-notifier/releases)
+  [![Tests](https://img.shields.io/github/actions/workflow/status/eyeskiller/fail2ban-notifier/ci.yml?branch=main&label=tests)](https://github.com/eyeskiller/fail2ban-notifier/actions)
   [![GitHub stars](https://img.shields.io/github/stars/eyeskiller/fail2ban-notifier?style=social)](https://github.com/eyeskiller/fail2ban-notifier/stargazers)
 </div>
 
@@ -30,17 +33,19 @@ curl -sSL https://raw.githubusercontent.com/eyeskiller/fail2ban-notifier/refs/he
 ```
 
 This installation script will:
-1. Check if you're running as root
-2. Download the repository from GitHub
-3. Install the binary from the build directory (or build it if not available)
-4. Set up all necessary configurations
-5. Clean up by removing the downloaded repository
+1. Fetch the latest release tag from GitHub
+2. Detect your system architecture (amd64, arm64, 386, armv7)
+3. Download the pre-built binary archive from GitHub Releases
+4. Install the binary, configuration files, and connector scripts
+5. Initialize the configuration at `/etc/fail2ban/fail2ban-notify.json`
 
 The installation process will:
 - Install the binary to `/usr/local/bin/fail2ban-notify`
 - Copy configuration files to `/etc/fail2ban/action.d/`
 - Copy connector scripts to `/etc/fail2ban/connectors/`
 - Initialize the configuration at `/etc/fail2ban/fail2ban-notify.json`
+
+> **Note**: Only Linux is supported for pre-built binaries. On other systems, build from source using `make build && sudo make install`.
 
 ## ⚙️ Configuration
 
