@@ -225,7 +225,7 @@ func (s *IPAPIService) GetName() string {
 }
 
 func (s *IPAPIService) Lookup(ip string) (info *Info, err error) {
-	url := fmt.Sprintf("https://ip-api.com/json/%s?fields=status,country,regionName,city,isp,timezone,lat,lon", ip)
+	url := fmt.Sprintf("http://ip-api.com/json/%s?fields=status,country,regionName,city,isp,timezone,lat,lon", ip)
 
 	// Create a new request with context
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
