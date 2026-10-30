@@ -13,6 +13,10 @@
   [![GitHub stars](https://img.shields.io/github/stars/eyeskiller/fail2ban-notifier?style=social)](https://github.com/eyeskiller/fail2ban-notifier/stargazers)
 </div>
 
+## 📋 Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a detailed list of all changes and release notes.
+
 ## ✨ Features
 
 - **🔔 Multiple Notification Services**: Support for Discord, Slack, Microsoft Teams, Telegram, Email, PagerDuty, and custom webhooks
