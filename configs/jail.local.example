@@ -58,7 +58,7 @@ bantime = 7200
 
 # Enhanced notification with custom settings
 action = iptables[name=SSH, port=ssh, protocol=tcp]
-         notify-enhanced[debug=true, min_failures=3, notify_start_stop=true]
+         notify-enhanced[debug_flag=" -debug"]
 
 #
 # Nginx HTTP Authentication
@@ -224,7 +224,7 @@ bantime = 3600
 # Multiple notification configurations
 action = iptables[name=SSH, port=ssh, protocol=tcp]
          notify[timeout=30]
-         notify-enhanced[config_path=/etc/fail2ban/ssh-notify.json, debug=true]
+         notify-enhanced[config_path=/etc/fail2ban/ssh-notify.json, debug_flag=" -debug"]
 
 #
 # Whitelist example (ignoreip)
