@@ -13,6 +13,14 @@
   [![GitHub stars](https://img.shields.io/github/stars/eyeskiller/fail2ban-notifier?style=social)](https://github.com/eyeskiller/fail2ban-notifier/stargazers)
 </div>
 
+## ☕ Support My Work
+
+<a href="https://ko-fi.com/eyeskiller" target="_blank">
+  <img src="https://raw.githubusercontent.com/eyeskiller/fail2ban-notifier/master/support.png" alt="Support my independent work" style="max-width:100%;">
+</a>
+
+Help me maintain this free open-source project.
+
 ## 📋 Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a detailed list of all changes and release notes.
@@ -592,13 +600,3 @@ To create an HTTP connector, add a new connector configuration to your `fail2ban
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-
-## ☕ Support My Work
-
-If you like this project and want to keep me fueled with caffeine (because I'm basically a machine that turns coffee into code), consider buying me a coffee:
-
-<a href="https://ko-fi.com/eyeskiller" target="_blank">
-  <img src="https://cdn.ko-fi.com/cdn/kofi_button.png" alt="Buy Me a Coffee" height="36" style="vertical-align:middle;">
-</a>
-
-Your support helps me maintain and improve this tool. Thanks! 🙌
