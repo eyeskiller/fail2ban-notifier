@@ -55,6 +55,9 @@ if [ -z "$TAG" ]; then
     TAG=$(curl -sL https://raw.githubusercontent.com/eyeskiller/fail2ban-notifier/main/VERSION 2>/dev/null || echo "1.1.0")
 fi
 
+# Strip leading 'v' for version number used in filenames
+VERSION="${TAG#v}"
+
 echo "Latest version: $TAG"
 
 # Create a temporary directory
@@ -62,16 +65,28 @@ TEMP_DIR=$(mktemp -d)
 echo "Created temporary directory: $TEMP_DIR"
 
 # Download the archive
-ARCHIVE_NAME="fail2ban-notify_${TAG}_linux_${GOARCH}.tar.gz"
+ARCHIVE_NAME="fail2ban-notify_${VERSION}_linux_${GOARCH}.tar.gz"
 ARCHIVE_URL="https://github.com/eyeskiller/fail2ban-notifier/releases/download/${TAG}/${ARCHIVE_NAME}"
 
 echo "Downloading $ARCHIVE_NAME..."
-curl -sL -o "$TEMP_DIR/$ARCHIVE_NAME" "$ARCHIVE_URL" || {
-    echo "Failed to download archive for linux/$GOARCH."
+HTTP_CODE=$(curl -sL -w '%{http_code}' -o "$TEMP_DIR/$ARCHIVE_NAME" "$ARCHIVE_URL")
+
+if [ "$HTTP_CODE" != "200" ]; then
+    echo "Failed to download archive (HTTP $HTTP_CODE)."
+    echo "URL: $ARCHIVE_URL"
     echo "Available releases: https://github.com/eyeskiller/fail2ban-notifier/releases"
     rm -rf "$TEMP_DIR"
     exit 1
-}
+fi
+
+# Validate the downloaded file is a gzip archive
+if ! file "$TEMP_DIR/$ARCHIVE_NAME" | grep -q "gzip"; then
+    echo "Error: Downloaded file is not a valid gzip archive."
+    echo "This may indicate the release asset does not exist for your architecture."
+    echo "Available releases: https://github.com/eyeskiller/fail2ban-notifier/releases"
+    rm -rf "$TEMP_DIR"
+    exit 1
+fi
 
 # Extract the archive
 echo "Extracting archive..."
