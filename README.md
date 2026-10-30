@@ -16,7 +16,7 @@
 ## ✨ Features
 
 - **🔔 Multiple Notification Services**: Support for Discord, Slack, Microsoft Teams, Telegram, Email, PagerDuty, and custom webhooks
-- **🌎 GeoIP Integration**: Automatically lookup and include geographic information about banned IPs
+- **🌎 GeoIP Integration**: HTTPS ipwho.is lookups by default, optional offline MaxMind GeoLite2, legacy ip-api.com behind explicit consent, and persistent cross-process caching
 - **⚙️ Flexible Configuration**: Easy to configure and extend with new notification services
 - **🔒 Fail2Ban Integration**: Seamlessly integrates with Fail2Ban's action system
 - **📝 Customizable Templates**: Notification messages can be customized for each service
@@ -44,6 +44,7 @@ The installation process will:
 - Copy configuration files to `/etc/fail2ban/action.d/`
 - Copy connector scripts to `/etc/fail2ban/connectors/`
 - Initialize the configuration at `/etc/fail2ban/fail2ban-notify.json`
+- Create the persistent GeoIP cache directory at `/var/cache/fail2ban-notifier`
 
 > **Note**: Only Linux is supported for pre-built binaries. On other systems, build from source using `make build && sudo make install`.
 
@@ -59,9 +60,10 @@ The wizard will guide you through:
 1. Checking prerequisites (Fail2Ban installation, permissions)
 2. Installing the Fail2Ban action configuration (`notify.conf`)
 3. Creating the application configuration
-4. Selecting and configuring notification connectors (Discord, Slack, Telegram, PagerDuty, etc.)
-5. Testing your connectors with sample data
-6. Adding the notify action to your Fail2Ban jails
+4. Selecting a GeoIP provider (ipwho.is, GeoLite2, or explicitly opting in to legacy ip-api.com)
+5. Selecting and configuring notification connectors (Discord, Slack, Telegram, PagerDuty, etc.)
+6. Testing your connectors with sample data
+7. Adding the notify action to your Fail2Ban jails
 
 All configuration is done interactively — no manual file editing required.
 
@@ -93,15 +95,171 @@ If you prefer to configure manually, the configuration file is created at `/etc/
   "connector_path": "/etc/fail2ban/connectors",
   "geoip": {
     "enabled": true,
-    "service": "ipapi",
+    "service": "ipwhois",
     "cache": true,
-    "ttl": 3600
+    "ttl": 86400,
+    "cache_path": "/var/cache/fail2ban-notifier/geoip.json",
+    "allow_insecure_http": false,
+    "city_db_path": "/usr/share/GeoIP/GeoLite2-City.mmdb",
+    "asn_db_path": "/usr/share/GeoIP/GeoLite2-ASN.mmdb"
   },
   "debug": false,
   "log_level": "info",
   "timeout": 30
 }
 ```
+
+### GeoIP Providers
+
+GeoIP data is optional enrichment. If a provider times out, is rate-limited, has a
+missing database, or is disabled, the notification is still delivered with the
+original IP address and all non-geographic data. GeoIP is approximate and must
+never be used as a trusted signal for authentication or access control.
+
+| Provider | Identifier | Transport | API key | Default | Notes |
+|---|---|---|---|---|---|
+| ipwho.is | `ipwhois` | HTTPS | No | Yes | About 1,000 requests/day per client IP on the free tier |
+| MaxMind GeoLite2 | `geolite2` | None (local MMDB) | No | No | Fully offline after database installation |
+| ip-api.com | `ipapi` | HTTP only | No | No | Legacy, explicitly insecure, requires consent |
+| ipgeolocation.io | `ipgeolocation` | HTTPS | Yes | No | Existing paid integration is preserved |
+
+#### ipwho.is (recommended)
+
+```json
+{
+  "geoip": {
+    "enabled": true,
+    "service": "ipwhois",
+    "cache": true,
+    "ttl": 86400,
+    "cache_path": "/var/cache/fail2ban-notifier/geoip.json"
+  }
+}
+```
+
+ipwho.is is the default for newly generated configurations because it is HTTPS,
+does not require an API key, and supports IPv4 and IPv6. The free API is rate
+limited; when HTTP 429 is returned, the cooldown is persisted (honoring
+`Retry-After` when present) so later Fail2Ban invocations do not keep retrying.
+
+#### MaxMind GeoLite2 (offline)
+
+```json
+{
+  "geoip": {
+    "enabled": true,
+    "service": "geolite2",
+    "cache": true,
+    "ttl": 86400,
+    "cache_path": "/var/cache/fail2ban-notifier/geoip.json",
+    "city_db_path": "/usr/share/GeoIP/GeoLite2-City.mmdb",
+    "asn_db_path": "/usr/share/GeoIP/GeoLite2-ASN.mmdb"
+  }
+}
+```
+
+GeoLite2 performs no network requests during lookups. The City database is
+required; the ASN database is optional, and City-only operation continues if it
+is missing. The ASN organization is used as a best-effort value for the
+notification ISP field; it is not necessarily the actual consumer ISP. The ASN
+number is exposed as `asn` / `F2B_ASN`.
+
+Databases are not bundled in this repository or in release binaries. Register
+for a free MaxMind account, create a GeoLite2 license key, and install
+`geoipupdate`:
+
+```bash
+# Example /etc/GeoIP.conf
+AccountID YOUR_ACCOUNT_ID
+LicenseKey YOUR_LICENSE_KEY
+EditionIDs GeoLite2-City GeoLite2-ASN
+DatabaseDirectory /usr/share/GeoIP
+```
+
+```bash
+sudo geoipupdate
+```
+
+Run `geoipupdate` periodically (for example from a weekly systemd timer or cron
+job) to keep the databases current. Cached results are invalidated automatically
+when the database files change. This product includes GeoLite2 data created by
+MaxMind, available from [https://www.maxmind.com](https://www.maxmind.com). Use
+of GeoLite2 data is subject to MaxMind's license and attribution requirements.
+
+#### ip-api.com (legacy, insecure HTTP)
+
+```json
+{
+  "geoip": {
+    "enabled": true,
+    "service": "ipapi",
+    "allow_insecure_http": true,
+    "cache": true,
+    "ttl": 86400
+  }
+}
+```
+
+> **Security warning:** The free ip-api.com endpoint is HTTP-only. Queried IP
+> addresses and responses travel unencrypted and can be observed or modified.
+> This provider is never selected by default and is never used unless
+> `allow_insecure_http` is explicitly set to `true`.
+
+Existing configurations that still contain `"service": "ipapi"` are preserved
+after upgrading, but no HTTP requests are made until consent is granted. A
+warning is logged and notifications continue without GeoIP enrichment. Migrate
+to `ipwhois` (recommended), install `geolite2`, or explicitly set
+`"allow_insecure_http": true` to accept the risk. HTTPS is never downgraded to
+HTTP automatically.
+
+#### ipgeolocation.io
+
+The existing paid integration remains available by setting
+`"service": "ipgeolocation"` and `"api_key": "..."`. The key is sent in the query
+string as required by that API and is redacted from error messages.
+
+#### Persistent caching and rate limits
+
+GeoIP results are cached in a JSON file because Fail2Ban starts a short-lived
+process for each notification; an in-memory cache cannot survive those
+executions. The default location is
+`/var/cache/fail2ban-notifier/geoip.json`, with a default TTL of 86400 seconds.
+
+- Entries are keyed by normalized IP address and provider.
+- IPv4-mapped IPv6 addresses are normalized before lookup and caching.
+- GeoLite2 cache entries include a database fingerprint and are invalidated
+  after `geoipupdate`.
+- Writes are atomic and protected by an inter-process file lock; the cache file
+  is created with mode `0600` and its directory with `0750`.
+- Corrupt, expired, invalid, or failed results are never served as successful
+  lookups, and failed lookups are never cached.
+- Expired entries are pruned and the cache is capped at 10,000 entries.
+- Setting `"cache": false` disables persistent caching entirely.
+- Rate-limit cooldowns are stored separately, per provider, under the same
+  directory.
+
+Fail2Ban usually runs the notifier as root, so the cache directory is created by
+the installer as root-owned with mode `0750`. If your deployment runs the action
+as a non-root user, grant that user write access to the cache directory or point
+`cache_path` at a suitable location.
+
+#### GeoIP troubleshooting
+
+- **`unsupported provider`**: use one of `ipwhois`, `geolite2`, `ipapi`, or
+  `ipgeolocation`. Provider names are validated instead of silently replaced;
+  an unsupported name is logged as a warning and GeoIP lookups are skipped
+  while notifications are still delivered.
+- **`allow_insecure_http` warning**: the legacy `ipapi` provider is selected but
+  insecure transport has not been authorized. Follow the migration notes above.
+- **`rate limited`**: wait for the persisted cooldown to expire, or switch
+  providers. Notifications are still delivered meanwhile.
+- **GeoLite2 database unavailable**: verify the paths in `city_db_path` and
+  `asn_db_path`, file permissions, and run `geoipupdate`. Check the file with
+  `mmdblookup`.
+- **Cache permission errors**: check ownership and mode of the cache directory
+  and file. The notifier logs a warning and continues without caching.
+- **Debugging**: run with `-debug` to see GeoIP failures and notification data.
+  API keys are not included in GeoIP error messages.
 
 ### 🔌 Enabling Connectors
 
@@ -376,7 +534,8 @@ except Exception as e:
 | `F2B_COUNTRY` | The country of the IP (if GeoIP is enabled) |
 | `F2B_REGION` | The region/state of the IP |
 | `F2B_CITY` | The city of the IP |
-| `F2B_ISP` | The ISP of the IP |
+| `F2B_ISP` | The ISP/ASN organization of the IP (best effort) |
+| `F2B_ASN` | The ASN number of the IP (for example `AS15169`) |
 | `F2B_HOSTNAME` | The hostname of the IP (if available) |
 | `F2B_FAILURES` | The number of failures that triggered the ban |
 

@@ -165,6 +165,11 @@ func handleNotification(ip, jail, action string, failures int, cfg *config.Confi
 
 	// Setup GeoIP manager
 	geoManager := geoip.NewManager(cfg.GeoIP, logger)
+	defer func() {
+		if closeErr := geoManager.Close(); closeErr != nil {
+			logger.Printf("Warning: Failed to close GeoIP resources: %v", closeErr)
+		}
+	}()
 
 	// Perform GeoIP lookup
 	var geoInfo *geoip.Info
@@ -208,6 +213,7 @@ func handleNotification(ip, jail, action string, failures int, cfg *config.Confi
 		notificationData.Region = geoInfo.Region
 		notificationData.City = geoInfo.City
 		notificationData.ISP = geoInfo.ISP
+		notificationData.ASN = geoInfo.ASN
 		notificationData.Timezone = geoInfo.Timezone
 		notificationData.Latitude = geoInfo.Lat
 		notificationData.Longitude = geoInfo.Lon
@@ -289,6 +295,9 @@ func main() {
 
 	if cfg.Debug {
 		logger.Printf("Loaded configuration from %s", *configPath)
+	}
+	for _, warning := range cfg.Warnings {
+		logger.Printf("Warning: %s", warning)
 	}
 
 	// Handle different command modes

@@ -1,0 +1,13 @@
+ignore:
+  SNYK-GOLANG-GOLANGORGXTOOLSGOPLSINTERNALCMD-17223219:
+    - "*":
+        reason: "gopls is a dev-only tool not included in the production binary; vulnerability requires debug flags not used by this project"
+        expires: "2027-01-01T00:00:00.000Z"
+  SNYK-GOLANG-GOLANGORGXTOOLSGOPLSINTERNALMCP-17223217:
+    - "*":
+        reason: "gopls is a dev-only tool not included in the production binary; vulnerability requires debug flags not used by this project"
+        expires: "2027-01-01T00:00:00.000Z"
+  SNYK-GOLANG-GOLANGORGXTOOLSGOPLSINTERNALLSPRPC-17223218:
+    - "*":
+        reason: "gopls is a dev-only tool not included in the production binary; vulnerability requires debug flags not used by this project"
+        expires: "2027-01-01T00:00:00.000Z"

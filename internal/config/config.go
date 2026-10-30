@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Connector types
@@ -16,8 +17,20 @@ const (
 
 // GeoIP service types
 const (
+	GeoIPServiceIPWhois       = "ipwhois"
+	GeoIPServiceGeoLite2      = "geolite2"
 	GeoIPServiceIPAPI         = "ipapi"
 	GeoIPServiceIPGeolocation = "ipgeolocation"
+)
+
+// GeoIP defaults
+const (
+	DefaultGeoIPCachePath    = "/var/cache/fail2ban-notifier/geoip.json"
+	DefaultGeoLite2CityDB    = "/usr/share/GeoIP/GeoLite2-City.mmdb"
+	DefaultGeoLite2ASNDB     = "/usr/share/GeoIP/GeoLite2-ASN.mmdb"
+	DefaultGeoIPTTL          = 86400
+	DefaultGeoIPService      = GeoIPServiceIPWhois
+	DefaultGeoIPCacheMaxSize = 10000
 )
 
 // File permissions
@@ -34,6 +47,10 @@ type Config struct {
 	Debug         bool              `json:"debug"`
 	LogLevel      string            `json:"log_level"`
 	Timeout       int               `json:"timeout"`
+
+	// Warnings contains non-fatal configuration problems discovered during
+	// validation. It is never serialized.
+	Warnings []string `json:"-"`
 }
 
 // ConnectorConfig defines a notification connector
@@ -51,11 +68,15 @@ type ConnectorConfig struct {
 
 // GeoIPConfig contains geolocation API settings
 type GeoIPConfig struct {
-	Enabled bool   `json:"enabled"`
-	APIKey  string `json:"api_key,omitempty"`
-	Service string `json:"service"` // "ipapi" or "ipgeolocation"
-	Cache   bool   `json:"cache"`   // Cache geolocation results
-	TTL     int    `json:"ttl"`     // Cache TTL in seconds
+	Enabled           bool   `json:"enabled"`
+	APIKey            string `json:"api_key,omitempty"`
+	Service           string `json:"service"`             // ipwhois, geolite2, ipapi, or ipgeolocation
+	Cache             bool   `json:"cache"`               // Persist geolocation results across processes
+	TTL               int    `json:"ttl"`                 // Cache TTL in seconds
+	CachePath         string `json:"cache_path"`          // Persistent cache file
+	AllowInsecureHTTP bool   `json:"allow_insecure_http"` // Explicit opt-in for the HTTP-only ipapi provider
+	CityDBPath        string `json:"city_db_path"`        // MaxMind GeoLite2 City database
+	ASNDBPath         string `json:"asn_db_path"`         // MaxMind GeoLite2 ASN database
 }
 
 // DefaultConfig returns a default configuration
@@ -64,10 +85,13 @@ func DefaultConfig() *Config {
 		Connectors:    []ConnectorConfig{},
 		ConnectorPath: "/etc/fail2ban/connectors",
 		GeoIP: GeoIPConfig{
-			Enabled: true,
-			Service: "ipapi",
-			Cache:   true,
-			TTL:     3600, // 1 hour
+			Enabled:    true,
+			Service:    DefaultGeoIPService,
+			Cache:      true,
+			TTL:        DefaultGeoIPTTL,
+			CachePath:  DefaultGeoIPCachePath,
+			CityDBPath: DefaultGeoLite2CityDB,
+			ASNDBPath:  DefaultGeoLite2ASNDB,
 		},
 		Debug:    false,
 		LogLevel: "info",
@@ -158,15 +182,69 @@ func validateConnector(i int, connector *ConnectorConfig) error {
 	return nil
 }
 
-// validateGeoIPConfig validates the GeoIP configuration
+// validateGeoIPConfig validates the GeoIP configuration.
+//
+// Omitted values receive secure defaults. Unknown provider names are never
+// silently replaced; instead a non-fatal warning is emitted and GeoIP
+// enrichment is skipped at runtime. GeoIP problems must not prevent
+// notifications from being delivered.
 func validateGeoIPConfig(config *Config) {
-	// Validate GeoIP config
-	if config.GeoIP.Service != GeoIPServiceIPAPI && config.GeoIP.Service != GeoIPServiceIPGeolocation {
-		config.GeoIP.Service = GeoIPServiceIPAPI
+	geo := &config.GeoIP
+	config.Warnings = nil
+
+	if geo.Service == "" {
+		geo.Service = DefaultGeoIPService
 	}
 
-	if config.GeoIP.TTL <= 0 {
-		config.GeoIP.TTL = 3600
+	validServices := []string{
+		GeoIPServiceIPWhois,
+		GeoIPServiceGeoLite2,
+		GeoIPServiceIPAPI,
+		GeoIPServiceIPGeolocation,
+	}
+	isValidService := false
+	for _, service := range validServices {
+		if geo.Service == service {
+			isValidService = true
+			break
+		}
+	}
+	if !isValidService {
+		config.Warnings = append(config.Warnings, fmt.Sprintf(
+			"geoip.service: unsupported provider %q (supported: %s); GeoIP enrichment will be skipped",
+			geo.Service, strings.Join(validServices, ", "),
+		))
+	}
+
+	if geo.TTL <= 0 {
+		geo.TTL = DefaultGeoIPTTL
+	}
+
+	if geo.CachePath == "" {
+		geo.CachePath = DefaultGeoIPCachePath
+	} else if !filepath.IsAbs(geo.CachePath) {
+		config.Warnings = append(config.Warnings, fmt.Sprintf(
+			"geoip.cache_path %q is not absolute; using %s", geo.CachePath, DefaultGeoIPCachePath,
+		))
+		geo.CachePath = DefaultGeoIPCachePath
+	}
+
+	if geo.CityDBPath == "" {
+		geo.CityDBPath = DefaultGeoLite2CityDB
+	} else if !filepath.IsAbs(geo.CityDBPath) {
+		config.Warnings = append(config.Warnings, fmt.Sprintf(
+			"geoip.city_db_path %q is not absolute; using %s", geo.CityDBPath, DefaultGeoLite2CityDB,
+		))
+		geo.CityDBPath = DefaultGeoLite2CityDB
+	}
+
+	if geo.ASNDBPath == "" {
+		geo.ASNDBPath = DefaultGeoLite2ASNDB
+	} else if !filepath.IsAbs(geo.ASNDBPath) {
+		config.Warnings = append(config.Warnings, fmt.Sprintf(
+			"geoip.asn_db_path %q is not absolute; using %s", geo.ASNDBPath, DefaultGeoLite2ASNDB,
+		))
+		geo.ASNDBPath = DefaultGeoLite2ASNDB
 	}
 }
 
