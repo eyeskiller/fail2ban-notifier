@@ -29,7 +29,7 @@ func (w *SetupWizard) configureGeoIP() error {
 	fmt.Println("   1. ipwho.is        HTTPS, no API key, recommended (about 1,000 requests/day)")
 	fmt.Println("   2. GeoLite2        Fully offline, requires local MaxMind MMDB files")
 	fmt.Println("   3. ip-api.com      Legacy, HTTP-only, insecure, explicit consent required")
-	fmt.Println("   4. ipgeolocation.io Paid API, requires an API key")
+	fmt.Println("   4. ipgeolocation.io HTTPS, requires an API key (free plan: 1,000 requests/day)")
 	fmt.Println()
 
 	current := w.cfg.GeoIP.Service
