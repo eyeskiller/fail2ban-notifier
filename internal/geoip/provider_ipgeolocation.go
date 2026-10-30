@@ -3,12 +3,14 @@ package geoip
 import (
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
 const ipGeolocationBaseURL = "https://api.ipgeolocation.io"
 
-// IPGeolocationService implements the paid ipgeolocation.io provider.
+// IPGeolocationService implements the ipgeolocation.io provider (v3 IP Location API).
+// An API key is required; the free plan is sufficient for Fail2Ban notifications.
 type IPGeolocationService struct {
 	apiKey  string
 	client  *http.Client
@@ -36,16 +38,25 @@ func (s *IPGeolocationService) Validate() error {
 	return nil
 }
 
+// ipGeolocationResponse maps the v3 /v3/ipgeo response. Location fields are
+// nested under "location", coordinates are returned as strings, the time zone
+// is an object, and the ISP name is reported as the ASN organization.
 type ipGeolocationResponse struct {
-	IP          string  `json:"ip"`
-	CountryName string  `json:"country_name"`
-	StateProv   string  `json:"state_prov"`
-	City        string  `json:"city"`
-	ISP         string  `json:"isp"`
-	TimeZone    string  `json:"time_zone"`
-	Latitude    float64 `json:"latitude"`
-	Longitude   float64 `json:"longitude"`
-	Message     string  `json:"message"`
+	IP       string `json:"ip"`
+	Location struct {
+		CountryName string `json:"country_name"`
+		StateProv   string `json:"state_prov"`
+		City        string `json:"city"`
+		Latitude    string `json:"latitude"`
+		Longitude   string `json:"longitude"`
+	} `json:"location"`
+	ASN struct {
+		Organization string `json:"organization"`
+	} `json:"asn"`
+	TimeZone struct {
+		Name string `json:"name"`
+	} `json:"time_zone"`
+	Message string `json:"message"`
 }
 
 func (s *IPGeolocationService) Lookup(ip string) (*Info, error) {
@@ -61,7 +72,7 @@ func (s *IPGeolocationService) Lookup(ip string) (*Info, error) {
 	if err != nil {
 		return nil, ErrProviderUnavailable
 	}
-	u.Path = "/ipgeo"
+	u.Path = "/v3/ipgeo"
 	query := u.Query()
 	query.Set("apiKey", s.apiKey)
 	query.Set("ip", normalized)
@@ -95,18 +106,30 @@ func (s *IPGeolocationService) Lookup(ip string) (*Info, error) {
 			return nil, &ProviderError{Provider: "ipgeolocation.io", Message: "response contained an invalid or mismatched IP address"}
 		}
 	}
-	if !validCoordinates(result.Latitude, result.Longitude) {
+	lat, latErr := parseCoordinate(result.Location.Latitude)
+	lon, lonErr := parseCoordinate(result.Location.Longitude)
+	if latErr != nil || lonErr != nil || !validCoordinates(lat, lon) {
 		return nil, &ProviderError{Provider: "ipgeolocation.io", Message: "response contained invalid coordinates"}
 	}
 
 	return &Info{
 		IP:       normalized,
-		Country:  result.CountryName,
-		Region:   result.StateProv,
-		City:     result.City,
-		ISP:      result.ISP,
-		Timezone: result.TimeZone,
-		Lat:      result.Latitude,
-		Lon:      result.Longitude,
+		Country:  result.Location.CountryName,
+		Region:   result.Location.StateProv,
+		City:     result.Location.City,
+		ISP:      result.ASN.Organization,
+		Timezone: result.TimeZone.Name,
+		Lat:      lat,
+		Lon:      lon,
 	}, nil
+}
+
+// parseCoordinate converts a string coordinate from the API. An empty value
+// is treated as unknown (0).
+func parseCoordinate(value string) (float64, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, nil
+	}
+	return strconv.ParseFloat(value, 64)
 }
