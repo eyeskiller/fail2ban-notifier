@@ -14,6 +14,7 @@ type NotificationData struct {
 	Region    string    `json:"region"`
 	City      string    `json:"city"`
 	ISP       string    `json:"isp"`
+	ASN       string    `json:"asn,omitempty"`
 	Hostname  string    `json:"hostname,omitempty"`
 	Failures  int       `json:"failures,omitempty"`
 	Timezone  string    `json:"timezone,omitempty"`
@@ -209,4 +210,3 @@ type APIResponse struct {
 	Timestamp time.Time   `json:"timestamp"`
 	Version   string      `json:"version,omitempty"`
 }
-

@@ -35,6 +35,7 @@ install: build
 	@echo "Installing $(BINARY_NAME)..."
 	sudo install -m 755 $(BUILD_DIR)/$(BINARY_NAME) /usr/local/bin/
 	sudo install -m 644 configs/notify.conf /etc/fail2ban/action.d/ 2>/dev/null || echo "Fail2ban action config not installed (fail2ban may not be installed)"
+	sudo install -d -m 0750 /var/cache/fail2ban-notifier
 	@echo "Initializing configuration..."
 	sudo /usr/local/bin/$(BINARY_NAME) -init || echo "Could not initialize config (may need manual setup)"
 	@echo "Installation complete!"

@@ -86,6 +86,9 @@ echo "Creating configuration directories..."
 mkdir -p /etc/fail2ban/action.d
 mkdir -p /etc/fail2ban/connectors
 
+# GeoIP cache directory (root-owned, private to the notifier process)
+install -d -m 0750 /var/cache/fail2ban-notifier
+
 # Install configuration files
 echo "Installing configuration files..."
 for f in "$TEMP_DIR"/configs/*; do
@@ -119,5 +122,13 @@ echo "Or configure manually:"
 echo "  1. Edit /etc/fail2ban/fail2ban-notify.json to enable connectors"
 echo "  2. Test your configuration: sudo fail2ban-notify -status"
 echo "  3. Add the 'notify' action to your fail2ban jail.local file"
+echo ""
+echo "GeoIP notes:"
+echo "  - The default provider (ipwho.is) uses HTTPS and needs no API key."
+echo "  - For offline GeoIP, install the MaxMind GeoLite2 City/ASN databases"
+echo "    and select the 'geolite2' provider in the setup wizard."
+echo "  - The legacy ip-api.com provider uses insecure HTTP and requires explicit"
+echo "    consent via geoip.allow_insecure_http=true."
+echo "  - Persistent cache: /var/cache/fail2ban-notifier/geoip.json"
 echo ""
 echo "For more information: https://github.com/eyeskiller/fail2ban-notifier"

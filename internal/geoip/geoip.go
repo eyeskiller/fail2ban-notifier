@@ -1,92 +1,161 @@
 package geoip
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net"
-	"net/http"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/eyeskiller/fail2ban-notifier/internal/config" //nolint:depguard
 )
 
-// Info represents geolocation information for an IP address
+// Info represents geolocation information for an IP address.
 type Info struct {
 	IP       string  `json:"ip"`
 	Country  string  `json:"country"`
 	Region   string  `json:"region"`
 	City     string  `json:"city"`
 	ISP      string  `json:"isp"`
+	ASN      string  `json:"asn,omitempty"`
 	Timezone string  `json:"timezone"`
 	Lat      float64 `json:"lat"`
 	Lon      float64 `json:"lon"`
 }
 
-// Service represents a GeoIP service provider
+// Service represents a GeoIP service provider.
 type Service interface {
 	Lookup(ip string) (*Info, error)
 	GetName() string
 }
 
-// Manager manages GeoIP lookups with caching
+type serviceValidator interface {
+	Validate() error
+}
+
+type cacheFingerprinter interface {
+	CacheFingerprint() string
+}
+
+type serviceCloser interface {
+	Close() error
+}
+
+// Manager manages GeoIP lookups with persistent caching and rate-limit state.
 type Manager struct {
-	config   config.GeoIPConfig
-	cache    map[string]*cacheEntry
-	cacheMu  sync.RWMutex
-	logger   *log.Logger
-	services map[string]Service
+	config      config.GeoIPConfig
+	logger      *log.Logger
+	services    map[string]Service
+	cache       *persistentCache
+	rateLimiter *rateLimiter
 }
 
-type cacheEntry struct {
-	info      *Info
-	timestamp time.Time
-}
-
-// NewManager creates a new GeoIP manager
+// NewManager creates a new GeoIP manager.
 func NewManager(cfg config.GeoIPConfig, logger *log.Logger) *Manager {
 	if logger == nil {
-		logger = log.New(os.Stdout, "[geoip] ", log.LstdFlags)
+		logger = log.New(os.Stderr, "[geoip] ", log.LstdFlags)
+	}
+	if cfg.Service == "" {
+		cfg.Service = config.DefaultGeoIPService
+	}
+	if cfg.CachePath == "" {
+		cfg.CachePath = config.DefaultGeoIPCachePath
+	}
+	if cfg.CityDBPath == "" {
+		cfg.CityDBPath = config.DefaultGeoLite2CityDB
+	}
+	if cfg.ASNDBPath == "" {
+		cfg.ASNDBPath = config.DefaultGeoLite2ASNDB
+	}
+	if cfg.TTL <= 0 {
+		cfg.TTL = config.DefaultGeoIPTTL
 	}
 
 	manager := &Manager{
-		config:   cfg,
-		cache:    make(map[string]*cacheEntry),
-		logger:   logger,
-		services: make(map[string]Service),
+		config:      cfg,
+		logger:      logger,
+		services:    make(map[string]Service),
+		rateLimiter: newRateLimiter(cfg.CachePath, logger),
 	}
 
-	// Register available services
-	manager.services["ipapi"] = &IPAPIService{client: &http.Client{Timeout: 10 * time.Second}}
-	if cfg.APIKey != "" {
-		manager.services["ipgeolocation"] = &IPGeolocationService{
-			apiKey: cfg.APIKey,
-			client: &http.Client{Timeout: 10 * time.Second},
-		}
+	manager.services[config.GeoIPServiceIPWhois] = newIPWhoisService(nil, "")
+	manager.services[config.GeoIPServiceGeoLite2] = newGeoLite2Service(cfg.CityDBPath, cfg.ASNDBPath, logger)
+	manager.services[config.GeoIPServiceIPAPI] = newIPAPIService(nil, "", cfg.AllowInsecureHTTP)
+	manager.services[config.GeoIPServiceIPGeolocation] = newIPGeolocationService(nil, "", cfg.APIKey)
+
+	if cfg.Cache {
+		manager.cache = newPersistentCache(
+			cfg.CachePath,
+			time.Duration(cfg.TTL)*time.Second,
+			config.DefaultGeoIPCacheMaxSize,
+			logger,
+		)
 	}
+
+	manager.warnAboutProviderConfiguration()
 
 	return manager
 }
 
-// Lookup performs a GeoIP lookup for the given IP address
+func (m *Manager) warnAboutProviderConfiguration() {
+	if !m.config.Enabled || m.config.Service != config.GeoIPServiceIPAPI {
+		return
+	}
+	if m.config.AllowInsecureHTTP {
+		m.logger.Printf("Warning: GeoIP provider ipapi uses unencrypted HTTP. Queried IP addresses and responses can be observed or modified. Consider ipwhois or geolite2 instead.")
+		return
+	}
+	m.logger.Printf("Warning: GeoIP provider ipapi is HTTP-only and allow_insecure_http is false; GeoIP enrichment will be skipped. Set geoip.allow_insecure_http=true to accept the risk, or migrate to ipwhois/geolite2.")
+}
+
+// Close releases local database resources.
+func (m *Manager) Close() error {
+	var firstErr error
+	for _, service := range m.services {
+		closer, ok := service.(serviceCloser)
+		if !ok {
+			continue
+		}
+		if err := closer.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func (m *Manager) serviceID() string {
+	if m.config.Service == "" {
+		return config.DefaultGeoIPService
+	}
+	return m.config.Service
+}
+
+func (m *Manager) cacheFingerprint() string {
+	service, ok := m.services[m.serviceID()]
+	if !ok {
+		return ""
+	}
+	if fingerprinter, ok := service.(cacheFingerprinter); ok {
+		return fingerprinter.CacheFingerprint()
+	}
+	return ""
+}
+
+// Lookup performs a GeoIP lookup for the given IP address.
 func (m *Manager) Lookup(ip string) (*Info, error) {
 	if !m.config.Enabled {
 		return &Info{IP: ip}, nil
 	}
 
-	// Validate IP address
-	if net.ParseIP(ip) == nil {
-		return nil, fmt.Errorf("invalid IP address: %s", ip)
+	normalized, ok := normalizeIP(ip)
+	if !ok {
+		return nil, fmt.Errorf("%w: %q", ErrInvalidIP, ip)
 	}
 
-	// Skip private/local IP addresses
-	if isPrivateIP(ip) {
+	if !isPublicIP(normalized) {
 		return &Info{
-			IP:      ip,
+			IP:      normalized,
 			Country: "Private Network",
 			Region:  "Local",
 			City:    "Internal",
@@ -94,296 +163,137 @@ func (m *Manager) Lookup(ip string) (*Info, error) {
 		}, nil
 	}
 
-	// Check cache first
-	if m.config.Cache {
-		if info := m.getCached(ip); info != nil {
+	serviceID := m.serviceID()
+	service, ok := m.services[serviceID]
+	if !ok {
+		return nil, fmt.Errorf("%w: unknown provider %q", ErrProviderUnavailable, serviceID)
+	}
+
+	if serviceID == config.GeoIPServiceIPAPI && !m.config.AllowInsecureHTTP {
+		return nil, ErrInsecureHTTP
+	}
+
+	fingerprint := m.cacheFingerprint()
+	if m.cache != nil {
+		if info := m.cache.Get(serviceID, normalized, fingerprint); info != nil {
 			return info, nil
 		}
 	}
 
-	// Get service
-	service, ok := m.services[m.config.Service]
-	if !ok {
-		return nil, fmt.Errorf("unknown GeoIP service: %s", m.config.Service)
+	if until := m.rateLimiter.Until(serviceID); until.After(time.Now()) {
+		return nil, fmt.Errorf("%w until %s", ErrRateLimited, until.UTC().Format(time.RFC3339))
 	}
 
-	// Perform lookup
-	info, err := service.Lookup(ip)
+	info, err := service.Lookup(normalized)
 	if err != nil {
-		m.logger.Printf("GeoIP lookup failed for %s: %v", ip, err)
-		return &Info{IP: ip}, nil // Return empty info instead of error
+		if cooldown, limited := rateLimitCooldown(err); limited {
+			until := time.Now().Add(cooldown)
+			m.rateLimiter.Set(serviceID, until)
+			m.logger.Printf("Warning: GeoIP provider %s is rate limited; suppressing further lookups until %s", serviceID, until.UTC().Format(time.RFC3339))
+			return nil, fmt.Errorf("%w: %v", ErrRateLimited, err)
+		}
+		m.logger.Printf("GeoIP lookup failed for %s using %s: %v", normalized, serviceID, err)
+		return nil, err
 	}
 
-	// Cache the result
-	if m.config.Cache {
-		m.setCached(ip, info)
+	if info == nil {
+		return nil, &ProviderError{Provider: serviceID, Message: "provider returned no data"}
+	}
+	if !validCoordinates(info.Lat, info.Lon) {
+		return nil, &ProviderError{Provider: serviceID, Message: "provider returned invalid coordinates"}
+	}
+	info.IP = normalized
+
+	if m.cache != nil {
+		m.cache.Set(serviceID, normalized, fingerprint, info)
 	}
 
 	return info, nil
 }
 
-// getCached retrieves cached GeoIP information
+// getCached retrieves cached GeoIP information for the configured provider.
 func (m *Manager) getCached(ip string) *Info {
-	m.cacheMu.RLock()
-	defer m.cacheMu.RUnlock()
-
-	entry, ok := m.cache[ip]
+	if m.cache == nil {
+		return nil
+	}
+	normalized, ok := normalizeIP(ip)
 	if !ok {
 		return nil
 	}
-
-	// Check if cache entry is still valid
-	if time.Since(entry.timestamp) > time.Duration(m.config.TTL)*time.Second {
-		return nil
-	}
-
-	return entry.info
+	return m.cache.Get(m.serviceID(), normalized, m.cacheFingerprint())
 }
 
-// setCached stores GeoIP information in cache
+// setCached stores GeoIP information in the persistent cache.
 func (m *Manager) setCached(ip string, info *Info) {
-	m.cacheMu.Lock()
-	defer m.cacheMu.Unlock()
+	if m.cache == nil || info == nil {
+		return
+	}
+	normalized, ok := normalizeIP(ip)
+	if !ok {
+		return
+	}
+	m.cache.Set(m.serviceID(), normalized, m.cacheFingerprint(), info)
+}
 
-	m.cache[ip] = &cacheEntry{
-		info:      info,
-		timestamp: time.Now(),
+// ClearCache clears the persistent GeoIP cache.
+func (m *Manager) ClearCache() {
+	if m.cache != nil {
+		m.cache.Clear()
 	}
 }
 
-// ClearCache clears the GeoIP cache
-func (m *Manager) ClearCache() {
-	m.cacheMu.Lock()
-	defer m.cacheMu.Unlock()
-	m.cache = make(map[string]*cacheEntry)
-}
-
-// GetCacheStats returns cache statistics
+// GetCacheStats returns cache statistics.
 func (m *Manager) GetCacheStats() map[string]interface{} {
-	m.cacheMu.RLock()
-	defer m.cacheMu.RUnlock()
-
 	stats := map[string]interface{}{
-		"enabled":     m.config.Cache,
-		"entries":     len(m.cache),
-		"ttl_seconds": m.config.TTL,
-		"service":     m.config.Service,
+		"enabled":       m.cache != nil,
+		"persistent":    m.cache != nil,
+		"entries":       0,
+		"total_entries": 0,
+		"ttl_seconds":   m.config.TTL,
+		"service":       m.serviceID(),
+		"cache_path":    m.config.CachePath,
+	}
+
+	if m.cache != nil {
+		total, valid := m.cache.Stats()
+		stats["entries"] = valid
+		stats["total_entries"] = total
 	}
 
 	return stats
 }
 
-// isPrivateIP checks if an IP address is private/local
-func isPrivateIP(ip string) bool {
-	parsedIP := net.ParseIP(ip)
-	if parsedIP == nil {
-		return false
-	}
-
-	// Check for private IPv4 ranges
-	private := []string{
-		"127.0.0.0/8",    // localhost
-		"10.0.0.0/8",     // private
-		"172.16.0.0/12",  // private
-		"192.168.0.0/16", // private
-		"169.254.0.0/16", // link-local
-	}
-
-	for _, cidr := range private {
-		_, network, _ := net.ParseCIDR(cidr)
-		if network.Contains(parsedIP) {
-			return true
-		}
-	}
-
-	// Check for IPv6 private ranges
-	if parsedIP.To4() == nil {
-		// IPv6 loopback
-		if parsedIP.IsLoopback() {
-			return true
-		}
-		// IPv6 link-local
-		if parsedIP.IsLinkLocalUnicast() {
-			return true
-		}
-		// IPv6 unique local
-		if len(parsedIP) >= 1 && (parsedIP[0]&0xfe) == 0xfc {
-			return true
-		}
-	}
-
-	return false
-}
-
-// IPAPIService implements the ip-api.com service
-type IPAPIService struct {
-	client *http.Client
-}
-
-func (s *IPAPIService) GetName() string {
-	return "ip-api.com"
-}
-
-func (s *IPAPIService) Lookup(ip string) (info *Info, err error) {
-	url := fmt.Sprintf("https://ip-api.com/json/%s?fields=status,country,regionName,city,isp,timezone,lat,lon", ip)
-
-	// Create a new request with context
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %w", err)
-	}
-	defer func() {
-		if closeError := resp.Body.Close(); closeError != nil {
-			err = fmt.Errorf("error closing response body: %v", closeError)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP error: %s", resp.Status)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	var result struct {
-		Status     string  `json:"status"`
-		Country    string  `json:"country"`
-		RegionName string  `json:"regionName"`
-		City       string  `json:"city"`
-		ISP        string  `json:"isp"`
-		Timezone   string  `json:"timezone"`
-		Lat        float64 `json:"lat"`
-		Lon        float64 `json:"lon"`
-	}
-
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON: %w", err)
-	}
-
-	if result.Status != "success" {
-		return nil, fmt.Errorf("API returned status: %s", result.Status)
-	}
-
-	return &Info{
-		IP:       ip,
-		Country:  result.Country,
-		Region:   result.RegionName,
-		City:     result.City,
-		ISP:      result.ISP,
-		Timezone: result.Timezone,
-		Lat:      result.Lat,
-		Lon:      result.Lon,
-	}, nil
-}
-
-// IPGeolocationService implements the ipgeolocation.io service
-type IPGeolocationService struct {
-	apiKey string
-	client *http.Client
-}
-
-func (s *IPGeolocationService) GetName() string {
-	return "ipgeolocation.io"
-}
-
-func (s *IPGeolocationService) Lookup(ip string) (info *Info, err error) {
-	url := fmt.Sprintf("https://api.ipgeolocation.io/ipgeo?apiKey=%s&ip=%s", s.apiKey, ip)
-
-	// Create a new request with context
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %w", err)
-	}
-	defer func() {
-		if clientError := resp.Body.Close(); clientError != nil {
-			err = fmt.Errorf("error closing response body: %v", clientError)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP error: %s", resp.Status)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	var result struct {
-		IP          string  `json:"ip"`
-		CountryName string  `json:"country_name"`
-		StateProv   string  `json:"state_prov"`
-		City        string  `json:"city"`
-		ISP         string  `json:"isp"`
-		TimeZone    string  `json:"time_zone"`
-		Latitude    float64 `json:"latitude"`
-		Longitude   float64 `json:"longitude"`
-		Message     string  `json:"message"` // Error message if any
-	}
-
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON: %w", err)
-	}
-
-	// Check for API errors
-	if result.Message != "" {
-		return nil, fmt.Errorf("API error: %s", result.Message)
-	}
-
-	return &Info{
-		IP:       ip,
-		Country:  result.CountryName,
-		Region:   result.StateProv,
-		City:     result.City,
-		ISP:      result.ISP,
-		Timezone: result.TimeZone,
-		Lat:      result.Latitude,
-		Lon:      result.Longitude,
-	}, nil
-}
-
-// BatchLookup performs multiple GeoIP lookups concurrently
+// BatchLookup performs multiple GeoIP lookups concurrently. Failed lookups are
+// omitted from the result map rather than being represented as empty successes.
 func (m *Manager) BatchLookup(ips []string) map[string]*Info {
 	results := make(map[string]*Info)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	// Limit concurrent requests
-	semaphore := make(chan struct{}, 5)
-
+	seen := make(map[string]struct{}, len(ips))
+	unique := make([]string, 0, len(ips))
 	for _, ip := range ips {
+		if _, ok := seen[ip]; ok {
+			continue
+		}
+		seen[ip] = struct{}{}
+		unique = append(unique, ip)
+	}
+
+	semaphore := make(chan struct{}, 5)
+	for _, ip := range unique {
 		wg.Add(1)
 		go func(ip string) {
 			defer wg.Done()
-			semaphore <- struct{}{}        // Acquire
-			defer func() { <-semaphore }() // Release
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
 
 			info, err := m.Lookup(ip)
-			mu.Lock()
 			if err != nil {
-				// Store empty info for failed lookups
-				results[ip] = &Info{IP: ip}
-			} else {
-				results[ip] = info
+				return
 			}
+			mu.Lock()
+			results[ip] = info
 			mu.Unlock()
 		}(ip)
 	}
@@ -392,28 +302,27 @@ func (m *Manager) BatchLookup(ips []string) map[string]*Info {
 	return results
 }
 
-// ValidateService checks if a GeoIP service is available and working
+// ValidateService checks whether a provider is registered and usable without
+// consuming API quota or making network requests.
 func (m *Manager) ValidateService(serviceName string) error {
 	service, ok := m.services[serviceName]
 	if !ok {
 		return fmt.Errorf("unknown service: %s", serviceName)
 	}
-
-	// Test with a known public IP (Google DNS)
-	testIP := "8.8.8.8"
-	_, err := service.Lookup(testIP)
-	if err != nil {
-		return fmt.Errorf("service validation failed: %w", err)
+	if validator, ok := service.(serviceValidator); ok {
+		if err := validator.Validate(); err != nil {
+			return fmt.Errorf("service validation failed: %w", err)
+		}
 	}
-
 	return nil
 }
 
-// GetAvailableServices returns a list of available GeoIP services
+// GetAvailableServices returns a sorted list of registered GeoIP services.
 func (m *Manager) GetAvailableServices() []string {
-	var services []string
+	services := make([]string, 0, len(m.services))
 	for name := range m.services {
 		services = append(services, name)
 	}
+	sort.Strings(services)
 	return services
 }

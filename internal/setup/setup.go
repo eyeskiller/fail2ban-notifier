@@ -51,6 +51,10 @@ func (w *SetupWizard) Run() error {
 		return err
 	}
 
+	if err := w.configureGeoIP(); err != nil {
+		return err
+	}
+
 	if err := w.configureConnectors(); err != nil {
 		return err
 	}
@@ -262,12 +266,12 @@ func (w *SetupWizard) configureSingleConnector(name string, status connectors.Co
 
 	fmt.Printf("  ⚠  Connector %s not found in config. Creating new entry.\n", name)
 	newConn := config.ConnectorConfig{
-		Name:    name,
-		Type:    status.Type,
-		Enabled: true,
-		Path:    status.Path,
+		Name:     name,
+		Type:     status.Type,
+		Enabled:  true,
+		Path:     status.Path,
 		Settings: map[string]string{},
-		Timeout: 30,
+		Timeout:  30,
 	}
 	updated := w.promptConnectorSettings(&newConn)
 	w.cfg.AddConnector(&updated)

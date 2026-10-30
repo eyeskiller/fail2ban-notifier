@@ -1,6 +1,7 @@
 # Binaries
 build/
-fail2ban-notify
+/fail2ban-notify
+/fail2ban-notify.exe
 
 # Go workspace
 *.out
@@ -11,3 +12,10 @@ fail2ban-notify
 .idea/
 .vscode/
 .DS_Store
+
+# Local MaxMind databases and GeoIP cache
+*.mmdb
+geoip.json
+geoip-ratelimit.json
+geoip*.lock
+.geoip*.tmp-*

@@ -237,6 +237,7 @@ func (m *Manager) executeScript(connector *config.ConnectorConfig, data *types.N
 		fmt.Sprintf("F2B_REGION=%s", data.Region),
 		fmt.Sprintf("F2B_CITY=%s", data.City),
 		fmt.Sprintf("F2B_ISP=%s", data.ISP),
+		fmt.Sprintf("F2B_ASN=%s", data.ASN),
 		fmt.Sprintf("F2B_HOSTNAME=%s", data.Hostname),
 		fmt.Sprintf("F2B_FAILURES=%d", data.Failures),
 	}
