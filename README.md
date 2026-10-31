@@ -21,6 +21,10 @@
 
 Help me maintain this free open-source project.
 
+<a href="https://www.giveth.io/project/fail2ban-notifier" target="_blank">
+  <img src="https://raw.githubusercontent.com/eyeskiller/fail2ban-notifier/master/support-crypto.png" alt="Support with crypto on Giveth" style="max-width:100%;">
+</a>
+
 ## 📋 Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a detailed list of all changes and release notes.
