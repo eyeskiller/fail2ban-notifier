@@ -10,7 +10,7 @@ toolchain go1.26.10
 
 require (
 	github.com/maxmind/mmdbwriter v1.2.0
-	github.com/oschwald/maxminddb-golang/v2 v2.1.1
+	github.com/oschwald/maxminddb-golang/v2 v2.8.0
 	golang.org/x/term v0.47.0
 )
 
