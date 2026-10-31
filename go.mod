@@ -1,6 +1,6 @@
 module github.com/eyeskiller/fail2ban-notifier
 
-go 1.26
+go 1.26.0
 
 toolchain go1.26.10
 
@@ -11,10 +11,10 @@ toolchain go1.26.10
 require (
 	github.com/maxmind/mmdbwriter v1.2.0
 	github.com/oschwald/maxminddb-golang/v2 v2.1.1
-	golang.org/x/term v0.44.0
+	golang.org/x/term v0.47.0
 )
 
 require (
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 )
