@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.1.4] - 2026-11-02
+
+### Fixed
+- **ipgeolocation provider**: Updated to v3 API (`/v3/ipgeo`) - the old `/ipgeo` endpoint was deprecated
+- **Response mapping**: Fixed field mapping for nested v3 response structure (location.*, asn.*, time_zone.name)
+- **Coordinate parsing**: Handle string coordinates from v3 API (were floats in v1)
+- **Rate limit detection**: Preserve HTTP 429 status errors so cooldown logic works correctly
+
+### Changed
+- **ipgeolocation docs**: Updated README and setup wizard to reflect free plan (1,000 requests/day)
+- **Dependencies**: Updated golang.org/x/term to v0.47.0, maxminddb-golang to v2.8.0
+
+### Added
+- **ASN field**: ipgeolocation provider now returns ASN number from v3 API
+
+---
+
 ## [v1.1.3] - 2026-10-30
 
 ### Added
@@ -84,6 +101,7 @@ First stable release of Fail2Ban Notifier.
 
 ---
 
+[v1.1.4]: https://github.com/eyeskiller/fail2ban-notifier/releases/tag/v1.1.4
 [v1.1.3]: https://github.com/eyeskiller/fail2ban-notifier/releases/tag/v1.1.3
 [1.1.2]: https://github.com/eyeskiller/fail2ban-notifier/releases/tag/1.1.2
 [1.1.1]: https://github.com/eyeskiller/fail2ban-notifier/releases/tag/1.1.1
