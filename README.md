@@ -137,7 +137,7 @@ never be used as a trusted signal for authentication or access control.
 | ipwho.is | `ipwhois` | HTTPS | No | Yes | About 1,000 requests/day per client IP on the free tier |
 | MaxMind GeoLite2 | `geolite2` | None (local MMDB) | No | No | Fully offline after database installation |
 | ip-api.com | `ipapi` | HTTP only | No | No | Legacy, explicitly insecure, requires consent |
-| ipgeolocation.io | `ipgeolocation` | HTTPS | Yes | No | Existing paid integration is preserved |
+| ipgeolocation.io | `ipgeolocation` | HTTPS | Yes | No | Free plan with 1,000 requests/day; API key required |
 
 #### ipwho.is (recommended)
 
@@ -230,9 +230,10 @@ HTTP automatically.
 
 #### ipgeolocation.io
 
-The existing paid integration remains available by setting
-`"service": "ipgeolocation"` and `"api_key": "..."`. The key is sent in the query
-string as required by that API and is redacted from error messages.
+Set `"service": "ipgeolocation"` and `"api_key": "..."`. The provider uses the
+v3 IP Location API over HTTPS, and the free plan (1,000 requests/day) is enough
+for typical Fail2Ban usage. The key is sent in the query string as required by
+that API and is redacted from error messages.
 
 #### Persistent caching and rate limits
 
