@@ -1,6 +1,7 @@
 package geoip
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -51,6 +52,7 @@ type ipGeolocationResponse struct {
 		Longitude   string `json:"longitude"`
 	} `json:"location"`
 	ASN struct {
+		ASNumber     string `json:"as_number"`
 		Organization string `json:"organization"`
 	} `json:"asn"`
 	TimeZone struct {
@@ -90,10 +92,17 @@ func (s *IPGeolocationService) Lookup(ip string) (*Info, error) {
 
 	var result ipGeolocationResponse
 	if err := doJSON(ctx, s.client, req, "ipgeolocation.io", &result); err != nil {
-		return nil, &ProviderError{
+		providerErr := &ProviderError{
 			Provider: "ipgeolocation.io",
 			Message:  strings.ReplaceAll(err.Error(), s.apiKey, "[REDACTED]"),
 		}
+		// Keep the HTTP status (which never contains the key) so the manager can
+		// detect HTTP 429 and apply its rate-limit cooldown.
+		var statusErr *HTTPStatusError
+		if errors.As(err, &statusErr) {
+			providerErr.Err = statusErr
+		}
+		return nil, providerErr
 	}
 
 	if result.Message != "" {
@@ -118,6 +127,7 @@ func (s *IPGeolocationService) Lookup(ip string) (*Info, error) {
 		Region:   result.Location.StateProv,
 		City:     result.Location.City,
 		ISP:      result.ASN.Organization,
+		ASN:      result.ASN.ASNumber,
 		Timezone: result.TimeZone.Name,
 		Lat:      lat,
 		Lon:      lon,

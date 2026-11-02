@@ -39,8 +39,8 @@ func TestIPGeolocationLookup(t *testing.T) {
 	if info.Country != "United States" || info.Region != "California" || info.City != "Mountain View" {
 		t.Errorf("unexpected mapping: %+v", info)
 	}
-	if info.ISP != "Google LLC" || info.Timezone != "America/Los_Angeles" {
-		t.Errorf("unexpected ISP/timezone mapping: %+v", info)
+	if info.ISP != "Google LLC" || info.ASN != "AS15169" || info.Timezone != "America/Los_Angeles" {
+		t.Errorf("unexpected ISP/ASN/timezone mapping: %+v", info)
 	}
 	if info.Lat != 37.4224 || info.Lon != -122.08421 {
 		t.Errorf("unexpected coordinates: %v, %v", info.Lat, info.Lon)
@@ -55,6 +55,23 @@ func TestIPGeolocationInvalidCoordinates(t *testing.T) {
 
 	if _, err := newIPGeolocationService(testClient(server, true), server.URL, "key").Lookup("8.8.8.8"); err == nil {
 		t.Fatal("expected invalid coordinates to fail")
+	}
+}
+
+func TestIPGeolocationRateLimitIsDetected(t *testing.T) {
+	const apiKey = "super-secret-key"
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "60")
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	_, err := newIPGeolocationService(testClient(server, true), server.URL, apiKey).Lookup("8.8.8.8")
+	if _, limited := rateLimitCooldown(err); !limited {
+		t.Fatalf("expected HTTP 429 to be detected as a rate limit, got %v", err)
+	}
+	if strings.Contains(err.Error(), apiKey) {
+		t.Fatalf("API key leaked in error: %v", err)
 	}
 }
 
