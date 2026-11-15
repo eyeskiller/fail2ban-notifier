@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.1.5] - 2026-11-15
+
+### Security
+- Build with Go 1.26.11 to fix GO-2026-6859 (CVE-2026-97054) in the standard library. The reported HTTP/1 server crash is not exposed by this client-only application.
+
+### Changed
+- Update golang.org/x/term to v0.48.0 and golang.org/x/sys to v0.50.0.
+
 ## [v1.1.4] - 2026-11-02
 
 ### Fixed
@@ -107,3 +115,5 @@ First stable release of Fail2Ban Notifier.
 [1.1.1]: https://github.com/eyeskiller/fail2ban-notifier/releases/tag/1.1.1
 [1.1.0]: https://github.com/eyeskiller/fail2ban-notifier/releases/tag/1.1.0
 [1.0.0]: https://github.com/eyeskiller/fail2ban-notifier/releases/tag/1.0.0
+
+[v1.1.5]: https://github.com/eyeskiller/fail2ban-notifier/releases/tag/v1.1.5
