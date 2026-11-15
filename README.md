@@ -13,6 +13,10 @@
   [![GitHub stars](https://img.shields.io/github/stars/eyeskiller/fail2ban-notifier?style=social)](https://github.com/eyeskiller/fail2ban-notifier/stargazers)
 </div>
 
+## 🌐 Project website
+
+Explore the features, installation guide, and support options at [eyeskiller.github.io/fail2ban-notifier](https://eyeskiller.github.io/fail2ban-notifier/).
+
 ## ☕ Support My Work
 
 <a href="https://ko-fi.com/eyeskiller" target="_blank">
